@@ -63,12 +63,36 @@ def clean_500_dataset():
 
 
 def clean_5k_dataset():
-    df_experiences = pd.read_excel(DATA_5K_EXPERIENCE_PATH)
+    # Read the "Scraped data" sheet from the 5K Excel file
+    df_experiences = pd.read_excel(DATA_5K_EXPERIENCE_PATH, sheet_name="Scraped data")
     df_skills = pd.read_csv(DATA_5K_SKILLS_PATH)
 
-    # If this sheet uses the same wide experience format (jobDescription_N, title_N, ...), apply the same cleaning.
-    if any(col.startswith("jobDescription_") for col in df_experiences.columns):
-        df_experiences = clean_full_experience_df(df_experiences)
+    # Columns to remove
+    columns_to_drop = [
+        "current_company_url",
+        "Company_size",
+        "last_scraped_date",
+        "previous_job_start_date",
+        "previous_job_location",
+        "previous_job_country",
+        "previous_company_size",
+        "employment_type",
+        "is_currently_employed",
+        "current_job_country",
+        "current_job_location",
+        "current_job_start_date",
+        "email",
+        "full_name",
+        "education_start_year",
+        "education_end_year",
+        "previous_job_end_date",
+        "total_experience_years",
+    ]
+
+    # Drop columns that exist in the dataframe
+    df_experiences = df_experiences.drop(
+        columns=[col for col in columns_to_drop if col in df_experiences.columns]
+    )
 
     return df_experiences, df_skills
 
