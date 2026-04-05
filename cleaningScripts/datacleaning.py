@@ -87,6 +87,7 @@ def clean_5k_dataset():
         "education_end_year",
         "previous_job_end_date",
         "total_experience_years",
+        "current_job_duration_years",
     ]
 
     # Drop columns that exist in the dataframe
