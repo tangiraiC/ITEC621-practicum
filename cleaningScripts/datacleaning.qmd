@@ -33,6 +33,20 @@ The document writes these files to `data/processed/`:
 
 ## Libraries
 
+### Summary
+
+Loads the R packages required for the Quarto report.
+
+### Explanation of the Code
+
+The code imports the libraries used to read CSV and Excel files, clean and
+transform the data, and format tables in the rendered report.
+
+### Expected Result
+
+The required packages load successfully, and the rest of the document can run
+without missing-package errors.
+
 ```{r setup}
 library(readr)
 library(readxl)
@@ -43,6 +57,22 @@ library(knitr)
 ```
 
 ## Project Paths
+
+### Summary
+
+Defines the locations of the raw input files and the processed output folder.
+
+### Explanation of the Code
+
+The code uses `resolve_project_path()` to search for the data files from more
+than one possible working directory. This makes the report more reliable when
+rendered from different locations. It also creates `data/processed/` if that
+folder does not already exist.
+
+### Expected Result
+
+All path variables are ready for later chunks, and the processed output
+directory exists before any files are saved.
 
 ```{r paths}
 resolve_project_path <- function(...) {
@@ -81,6 +111,21 @@ dir.create(processed_dir, recursive = TRUE, showWarnings = FALSE)
 
 ## Input Validation
 
+### Summary
+
+Checks that all required input files exist before the cleaning process starts.
+
+### Explanation of the Code
+
+The code collects all required file paths into one vector, tests whether each
+file exists, and stops the render if any file is missing. If all files are
+present, it creates a validation table showing the file names and locations.
+
+### Expected Result
+
+Either the document stops with a clear missing-file error, or it shows a table
+confirming that all inputs were found.
+
 ```{r validate-inputs}
 required_input_files <- c(
   data_500_experience_full_path,
@@ -111,6 +156,22 @@ tibble::tibble(
 # Cleaning Logic
 
 ## Helper Functions
+
+### Summary
+
+Defines reusable helper functions for the cleaning pipeline.
+
+### Explanation of the Code
+
+`join_columns()` combines repeated columns into one output column.
+`drop_prefixed_columns()` removes unwanted groups of numbered columns.
+`select_500_columns()` keeps only the final columns needed in the cleaned
+500-profile experience output.
+
+### Expected Result
+
+No visible output is produced here. The helper functions are stored in memory
+for later chunks.
 
 ```{r helpers}
 join_columns <- function(df, columns, output_column) {
@@ -153,6 +214,21 @@ select_500_columns <- function(df, max_index = 27) {
 
 ## Experience Cleaning Function
 
+### Summary
+
+Defines the main cleaning function for the 500-profile experience dataset.
+
+### Explanation of the Code
+
+The function gathers repeated job description, title, and company name fields
+into single columns. It then removes company and job metadata fields that are
+not needed and returns only the selected columns for the final cleaned dataset.
+
+### Expected Result
+
+No direct output is shown here. The function is prepared for use in the dataset
+loading and cleaning step.
+
 ```{r clean-full-experience}
 clean_full_experience_df <- function(df, max_index = 27) {
   job_description_columns <- paste0("jobDescription_", 1:max_index)
@@ -177,6 +253,23 @@ clean_full_experience_df <- function(df, max_index = 27) {
 ```
 
 ## Dataset-Specific Cleaning Functions
+
+### Summary
+
+Defines the functions that load and clean the 500-profile and 5K-profile
+datasets.
+
+### Explanation of the Code
+
+`clean_500_dataset()` reads the 500 CSV files and applies the main experience
+cleaning function to the experience datasets. `clean_5k_dataset()` reads the 5K
+Excel and skills files, removes the unwanted columns, and returns the cleaned
+results as a list.
+
+### Expected Result
+
+No direct rendered output appears here. These functions return cleaned datasets
+that will be used in the execution chunk.
 
 ```{r dataset-cleaners}
 clean_500_dataset <- function() {
@@ -231,6 +324,21 @@ clean_5k_dataset <- function() {
 
 ## Save Functions
 
+### Summary
+
+Defines the functions that save the cleaned datasets as CSV files.
+
+### Explanation of the Code
+
+`save_cleaned_data()` writes the three cleaned 500-profile outputs, and
+`save_cleaned_5k_data()` writes the two cleaned 5K-profile outputs. All files
+are saved into the processed data folder.
+
+### Expected Result
+
+No direct output is shown here. The save functions are ready to write all five
+cleaned files during execution.
+
 ```{r save-functions}
 save_cleaned_data <- function(data_list) {
   write_csv(data_list$experiences, file.path(processed_dir, "cleaned_500_experiences.csv"))
@@ -251,6 +359,20 @@ save_cleaned_5k_data <- function(data_list) {
 
 ## Run The Pipeline
 
+### Summary
+
+Runs the full cleaning workflow from start to finish.
+
+### Explanation of the Code
+
+The code calls the dataset cleaning functions, stores the cleaned results, and
+then calls the save functions to write the outputs for both the 500-profile and
+5K-profile datasets.
+
+### Expected Result
+
+All five cleaned CSV files are written to `data/processed/`.
+
 ```{r main, cache=TRUE}
 data_500 <- clean_500_dataset()
 save_cleaned_data(data_500)
@@ -260,6 +382,21 @@ save_cleaned_5k_data(data_5k)
 ```
 
 ## Output Summary
+
+### Summary
+
+Builds a summary table of the generated output files.
+
+### Explanation of the Code
+
+The code creates a tibble listing each output file name, its row count, its
+column count, and its saved location. That tibble is then rendered as a table
+in the report using `knitr::kable()`.
+
+### Expected Result
+
+A rendered table appears in the report showing the five output files and
+confirming that the pipeline produced the expected results.
 
 ```{r output-summary}
 output_summary <- tibble::tibble(
