@@ -1,98 +1,168 @@
 ---
 title: "LinkedIn Data Cleaning Pipeline"
 author: "Generated from Python Script"
-date: "`r Sys.Date()`"
-output: html_document
+date: today
+format:
+  html:
+    toc: true
+    number-sections: true
+execute:
+  echo: true
+  warning: false
+  message: false
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+# Overview
+
+This Quarto document reproduces the LinkedIn cleaning workflow in
+`cleaningScripts/datacleaning.py`. It reads the raw 500-profile and
+5K-profile datasets, cleans them, writes the processed CSV files, and
+shows preview tables in the rendered report.
+
+## Expected Outputs
+
+The document writes these files to `data/processed/`:
+
+- `cleaned_500_experiences.csv`
+- `cleaned_500_current_experiences.csv`
+- `cleaned_500_skills.csv`
+- `cleaned_5k_experiences.csv`
+- `cleaned_5k_skills.csv`
+
+# Setup
+
+## Libraries
+
+```{r setup}
 library(readr)
 library(readxl)
 library(dplyr)
 library(tidyr)
 library(stringr)
+library(knitr)
 ```
 
-## Overview
-
-This RMarkdown document performs the same data cleaning as the Python script `datacleaning.py`. It processes LinkedIn scrape datasets for 500 and 5K profiles.
-
-## File Paths
+## Project Paths
 
 ```{r paths}
-# Define file paths
-data_500_experience_full_path <- "./data/raw/LinkedIn_Scrape_500_Experiences_Wide_Full_List.csv"
-data_500_experience_current_path <- "./data/raw/LinkedIn_Scrape_500_Experiences_Wide_Current_List.csv"
-data_500_skills_path <- "./data/raw/LinkedIn_Scrape_500_Skills_List.csv"
+resolve_project_path <- function(...) {
+  candidates <- c(
+    normalizePath(file.path("..", ...), winslash = "/", mustWork = FALSE),
+    normalizePath(file.path(".", ...), winslash = "/", mustWork = FALSE)
+  )
 
-data_5k_experience_path <- "./data/raw/LinkedIn_Scrape_full_5865.xlsx"
-data_5k_skills_path <- "./data/raw/LinkedIn_Scrape_full_5865_Skills_List.csv"
+  existing_candidate <- candidates[file.exists(candidates)][1]
+  if (!is.na(existing_candidate)) {
+    return(existing_candidate)
+  }
 
-processed_dir <- "./data/processed"
+  candidates[[1]]
+}
 
-# Create processed directory if it doesn't exist
+data_500_experience_full_path <- resolve_project_path(
+  "data", "raw", "LinkedIn_Scrape_500_Experiences_Wide_Full_List.csv"
+)
+data_500_experience_current_path <- resolve_project_path(
+  "data", "raw", "LinkedIn_Scrape_500_Experiences_Wide_Current_List.csv"
+)
+data_500_skills_path <- resolve_project_path(
+  "data", "raw", "LinkedIn_Scrape_500_Skills_List.csv"
+)
+data_5k_experience_path <- resolve_project_path(
+  "data", "raw", "LinkedIn_Scrape_full_5865.xlsx"
+)
+data_5k_skills_path <- resolve_project_path(
+  "data", "raw", "LinkedIn_Scrape_full_5865_Skills_List.csv"
+)
+processed_dir <- resolve_project_path("data", "processed")
+
 dir.create(processed_dir, recursive = TRUE, showWarnings = FALSE)
 ```
+
+## Input Validation
+
+```{r validate-inputs}
+required_input_files <- c(
+  data_500_experience_full_path,
+  data_500_experience_current_path,
+  data_500_skills_path,
+  data_5k_experience_path,
+  data_5k_skills_path
+)
+
+missing_input_files <- required_input_files[!file.exists(required_input_files)]
+
+if (length(missing_input_files) > 0) {
+  stop(
+    paste(
+      "Missing required input files:",
+      paste(missing_input_files, collapse = ", ")
+    )
+  )
+}
+
+tibble::tibble(
+  input_file = basename(required_input_files),
+  location = required_input_files
+) |>
+  knitr::kable(caption = "Validated input files")
+```
+
+# Cleaning Logic
 
 ## Helper Functions
 
 ```{r helpers}
-# Function to join columns into a single column
 join_columns <- function(df, columns, output_column) {
   existing_columns <- columns[columns %in% colnames(df)]
   if (length(existing_columns) == 0) {
     return(df)
   }
 
-  # Combine columns, removing NA values
   df[[output_column]] <- apply(df[, existing_columns, drop = FALSE], 1, function(row) {
     paste(na.omit(row), collapse = " ")
   })
 
-  # Remove original columns
   df <- df[, !colnames(df) %in% existing_columns]
-  return(df)
+  df
 }
 
-# Function to drop prefixed columns
 drop_prefixed_columns <- function(df, prefix, max_index) {
   columns_to_drop <- paste0(prefix, "_", 1:max_index)
   columns_to_drop <- columns_to_drop[columns_to_drop %in% colnames(df)]
+
   if (length(columns_to_drop) > 0) {
     df <- df[, !colnames(df) %in% columns_to_drop]
   }
-  return(df)
+
+  df
 }
 
-# Function to select 500 columns
 select_500_columns <- function(df, max_index = 27) {
   allowed_columns <- c("linkedinUrl", "jobDescription", "jobTitle", "companyName")
-  allowed_columns <- c(allowed_columns,
-                       paste0("jobStartedOn_", 1:max_index),
-                       paste0("jobEndedOn_", 1:max_index))
+  allowed_columns <- c(
+    allowed_columns,
+    paste0("jobStartedOn_", 1:max_index),
+    paste0("jobEndedOn_", 1:max_index)
+  )
   allowed_columns <- allowed_columns[allowed_columns %in% colnames(df)]
-  return(df[, allowed_columns, drop = FALSE])
+
+  df[, allowed_columns, drop = FALSE]
 }
 ```
 
-## Clean Full Experience DataFrame
+## Experience Cleaning Function
 
-```{r clean_full_experience}
+```{r clean-full-experience}
 clean_full_experience_df <- function(df, max_index = 27) {
-  df <- df  # Copy
-
-  # Define column groups to consolidate
   job_description_columns <- paste0("jobDescription_", 1:max_index)
   title_columns <- paste0("title_", 1:max_index)
   company_name_columns <- paste0("companyName_", 1:max_index)
 
-  # Consolidate wide columns
   df <- join_columns(df, job_description_columns, "jobDescription")
   df <- join_columns(df, title_columns, "jobTitle")
   df <- join_columns(df, company_name_columns, "companyName")
 
-  # Remove unwanted prefixed columns
   df <- drop_prefixed_columns(df, "companyId", max_index)
   df <- drop_prefixed_columns(df, "companySize", max_index)
   df <- drop_prefixed_columns(df, "companyIndustry", max_index)
@@ -102,37 +172,29 @@ clean_full_experience_df <- function(df, max_index = 27) {
   df <- drop_prefixed_columns(df, "jobLocationCountry", max_index)
   df <- drop_prefixed_columns(df, "jobStillWorking", max_index)
 
-  # Select final columns
-  df <- select_500_columns(df, max_index)
-  return(df)
+  select_500_columns(df, max_index)
 }
 ```
 
-## Clean 500 Dataset
+## Dataset-Specific Cleaning Functions
 
-```{r clean_500}
+```{r dataset-cleaners}
 clean_500_dataset <- function() {
   df_experiences <- read_csv(data_500_experience_full_path, show_col_types = FALSE)
   df_current_experiences <- read_csv(data_500_experience_current_path, show_col_types = FALSE)
   df_skills <- read_csv(data_500_skills_path, show_col_types = FALSE)
 
-  df_experiences <- clean_full_experience_df(df_experiences)
-  df_current_experiences <- clean_full_experience_df(df_current_experiences, max_index = 1)
-
-  return(list(experiences = df_experiences,
-              current_experiences = df_current_experiences,
-              skills = df_skills))
+  list(
+    experiences = clean_full_experience_df(df_experiences),
+    current_experiences = clean_full_experience_df(df_current_experiences, max_index = 1),
+    skills = df_skills
+  )
 }
-```
 
-## Clean 5K Dataset
-
-```{r clean_5k}
 clean_5k_dataset <- function() {
   df_experiences <- read_excel(data_5k_experience_path, sheet = "Scraped data")
   df_skills <- read_csv(data_5k_skills_path, show_col_types = FALSE)
 
-  # Columns to remove
   columns_to_drop <- c(
     "current_company_url",
     "Company_size",
@@ -155,22 +217,27 @@ clean_5k_dataset <- function() {
     "current_job_duration_years"
   )
 
-  # Drop columns that exist
   columns_to_drop <- columns_to_drop[columns_to_drop %in% colnames(df_experiences)]
   if (length(columns_to_drop) > 0) {
     df_experiences <- df_experiences[, !colnames(df_experiences) %in% columns_to_drop]
   }
 
-  return(list(experiences = df_experiences, skills = df_skills))
+  list(
+    experiences = df_experiences,
+    skills = df_skills
+  )
 }
 ```
 
 ## Save Functions
 
-```{r save_functions}
+```{r save-functions}
 save_cleaned_data <- function(data_list) {
   write_csv(data_list$experiences, file.path(processed_dir, "cleaned_500_experiences.csv"))
-  write_csv(data_list$current_experiences, file.path(processed_dir, "cleaned_500_current_experiences.csv"))
+  write_csv(
+    data_list$current_experiences,
+    file.path(processed_dir, "cleaned_500_current_experiences.csv")
+  )
   write_csv(data_list$skills, file.path(processed_dir, "cleaned_500_skills.csv"))
 }
 
@@ -180,40 +247,92 @@ save_cleaned_5k_data <- function(data_list) {
 }
 ```
 
-## Display Functions
+# Execution
 
-```{r display}
-showheads <- function(data_list) {
-  cat("Experiences DataFrame:\n")
-  print(head(data_list$experiences))
-  cat("\nCurrent Experiences DataFrame:\n")
-  print(head(data_list$current_experiences))
-  cat("\nSkills DataFrame:\n")
-  print(head(data_list$skills))
-}
+## Run The Pipeline
 
-showheads_5k <- function(data_list) {
-  cat("5K Experiences DataFrame:\n")
-  print(head(data_list$experiences))
-  cat("\n5K Skills DataFrame:\n")
-  print(head(data_list$skills))
-}
-```
-
-## Main Execution
-
-```{r main}
-# Process 500 dataset
+```{r main, cache=TRUE}
 data_500 <- clean_500_dataset()
 save_cleaned_data(data_500)
-showheads(data_500)
 
-# Process 5K dataset
 data_5k <- clean_5k_dataset()
 save_cleaned_5k_data(data_5k)
-showheads_5k(data_5k)
 ```
 
-## Summary
+## Output Summary
 
-The cleaning pipeline has processed both datasets and saved the results to the `data/processed/` directory.
+```{r output-summary}
+output_summary <- tibble::tibble(
+  file_name = c(
+    "cleaned_500_experiences.csv",
+    "cleaned_500_current_experiences.csv",
+    "cleaned_500_skills.csv",
+    "cleaned_5k_experiences.csv",
+    "cleaned_5k_skills.csv"
+  ),
+  rows = c(
+    nrow(data_500$experiences),
+    nrow(data_500$current_experiences),
+    nrow(data_500$skills),
+    nrow(data_5k$experiences),
+    nrow(data_5k$skills)
+  ),
+  columns = c(
+    ncol(data_500$experiences),
+    ncol(data_500$current_experiences),
+    ncol(data_500$skills),
+    ncol(data_5k$experiences),
+    ncol(data_5k$skills)
+  ),
+  output_path = file.path(processed_dir, file_name)
+)
+
+knitr::kable(output_summary, caption = "Generated output files")
+```
+
+<!--
+# Data Previews
+
+## 500 Dataset
+
+### Full Experience Preview
+
+```{r preview-500-experiences}
+knitr::kable(head(data_500$experiences), caption = "500 full experiences preview")
+```
+
+### Current Experience Preview
+
+```{r preview-500-current}
+knitr::kable(
+  head(data_500$current_experiences),
+  caption = "500 current experiences preview"
+)
+```
+
+### Skills Preview
+
+```{r preview-500-skills}
+knitr::kable(head(data_500$skills), caption = "500 skills preview")
+```
+
+## 5K Dataset
+
+### Experience Preview
+
+```{r preview-5k-experiences}
+knitr::kable(head(data_5k$experiences), caption = "5K experiences preview")
+```
+
+### Skills Preview
+
+```{r preview-5k-skills}
+knitr::kable(head(data_5k$skills), caption = "5K skills preview")
+```
+-->
+
+# Summary
+
+The Quarto document now runs the full cleaning workflow, validates the required
+input files before processing, writes all five output CSVs to `data/processed/`,
+and includes a structured summary plus preview tables in the rendered report.
