@@ -1,0 +1,67 @@
+---
+title: "CP8 Data Preparation"
+author: "Lincoln Chanakira"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+# Load Packages
+
+```{r packages}
+library(readr)
+library(readxl)
+library(dplyr)
+```
+
+# Import Dataset
+
+```{r import-5k-data}
+linkedin_full_path <- "../../../data/raw/LinkedIn_Scrape_full_5865.xlsx"
+
+linkedin_full <- read_excel(linkedin_full_path, sheet = "Scraped data")
+
+cat("LinkedIn full shape:", dim(linkedin_full), "\n")
+```
+
+# Inspect Imported Data
+
+```{r inspect-5k-data}
+glimpse(linkedin_full)
+
+head(linkedin_full)
+```
+
+# Remove Columns and Save Prepared Dataset
+
+```{r remove-columns-save}
+columns_to_remove <- c(
+  "full_name",
+  "email",
+  "education_start_year",
+  "education_end_year",
+  "current_company_url",
+  "Company_size",
+  "current_job_start_date",
+  "last_scraped_date",
+  "previous_job_start_date",
+  "previous_job_end_date",
+  "previous_company_size",
+  "previous_company_name",
+  "employment_type",
+  "is_currently_employed",
+  "current_job_duration_years"
+)
+
+linkedin_prepared <- linkedin_full |>
+  select(-any_of(columns_to_remove))
+
+prepared_output_path <- "../../../data/processed/linkedin_full_5865_prepared.csv"
+write_csv(linkedin_prepared, prepared_output_path)
+
+cat("Prepared dataset shape:", dim(linkedin_prepared), "\n")
+cat("Prepared dataset saved to:", prepared_output_path, "\n")
+glimpse(linkedin_prepared)
+```

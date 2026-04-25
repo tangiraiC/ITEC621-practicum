@@ -1,0 +1,370 @@
+---
+title: "CP7_The Insight Collective"
+author: "Team Insight Collective"
+date: "2026-04-06"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Required Data Preparation Steps
+
+## 1. Dataset Inspection and Scoping
+* Load and inspect the LinkedIn profile dataset.
+* Identify which fields are relevant to your assigned client question.
+* Subset or reshape the data as needed to focus on the relevant unit of analysis.
+
+```{r}
+# loading required packages
+library(readr)
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(tidytext)
+library(SnowballC)
+library(stopwords)
+library(tibble)
+library(purrr)
+library(jsonlite)
+```
+
+```{r}
+# loading the cleaned data
+exp_clean       <- read.csv("../data/processed/cleaned_500_experiences.csv", stringsAsFactors = FALSE)
+currexp_clean   <- read.csv("../data/processed/cleaned_500_current_experiences.csv", stringsAsFactors = FALSE)
+skills_clean    <- read.csv("../data/processed/cleaned_500_skills.csv", stringsAsFactors = FALSE)
+exp_5k_clean    <- read.csv("../data/processed/cleaned_5k_experiences.csv", stringsAsFactors = FALSE)
+skills_5k_clean <- read.csv("../data/processed/cleaned_5k_skills.csv", stringsAsFactors = FALSE)
+```
+
+```{r}
+# Checking how many rows and columns each file has
+file_summary <- cbind(
+  File    = c("500 experiences", "500 current experiences", "500 skills",
+              "5k experiences", "5k skills"),
+  Rows    = c(nrow(exp_clean), nrow(currexp_clean), nrow(skills_clean),
+              nrow(exp_5k_clean), nrow(skills_5k_clean)),
+  Columns = c(ncol(exp_clean), ncol(currexp_clean), ncol(skills_clean),
+              ncol(exp_5k_clean), ncol(skills_5k_clean))
+)
+print(file_summary)
+```
+
+```{r}
+# Checking column names
+names(exp_clean)
+names(exp_5k_clean)
+names(skills_5k_clean)
+
+# Structure and data types
+str(exp_clean)
+str(exp_5k_clean)
+str(skills_5k_clean)
+```
+
+
+## 2. Data Quality and Validation
+* Check for and document: missing or null values, inconsistent formatting, duplicate profiles or records.
+* Apply entity integrity checks and referential integrity checks.
+* Document your resolution strategy for each data quality issue found.
+
+For the **Data Quality and Validation** stage, we applied **missing value analysis, duplicate record detection, unique identifier validation, completeness checking, and cross-dataset comparison** techniques to find out whether the cleaned LinkedIn data was consistent and reliable enough for downstream analysis. The outcome of the data is that we identified where missing values were concentrated, verified that profile identifiers were not duplicated, confirmed that LinkedIn URL fields were largely complete, and determined that the 500-profile dataset had stronger job description coverage for text-based analysis.
+
+```{r}
+# finding the total missing values
+sum(is.na(exp_clean))
+sum(is.na(exp_5k_clean))
+sum(is.na(skills_5k_clean))
+
+# checking to see which column has a missing value
+colSums(is.na(exp_clean))
+colSums(is.na(exp_5k_clean))
+
+# Resolution Strategy Note:
+# most missing values were related to job started or ended on and other columns
+# like industry and company name. Our key columns such as linkedin url and
+# job descriptions have no missing values.
+```
+
+```{r}
+# checking for duplicated linkedin urls
+sum(duplicated(exp_clean$linkedinUrl))
+sum(duplicated(exp_5k_clean$linkedinUrl))
+
+# no duplicates in linkedin
+```
+
+```{r}
+# checking for any missing linkedin url links
+sum(is.na(exp_clean$linkedinUrl))
+sum(is.na(exp_5k_clean$linkedin_url))
+
+# no missing urls
+```
+
+```{r}
+# checking to see how many profiles have job desc in 500 data and 5k data
+sum(!is.na(exp_clean$jobDescription) & exp_clean$jobDescription != "")
+sum(!is.na(exp_5k_clean$current_job_description) &
+      exp_5k_clean$current_job_description != "")
+
+# finding the percentage of what is in the 5k data
+sum(!is.na(exp_5k_clean$current_job_description) &
+      exp_5k_clean$current_job_description != "") / nrow(exp_5k_clean) * 100
+
+# Resolution Strategy Note:
+# we have 316/452 profiles with job description in 500 data (about 70%)
+# and 2050/5865 in 5k data (about 35%)
+# we will use the 500 dataset for text preprocessing since it has better coverage
+```
+
+
+## 3. Text Preprocessing
+* Lowercasing, punctuation handling, and whitespace normalization.
+* Tokenization and stopword removal.
+* Stemming or lemmatization.
+* Handling of special characters, URLs, and LinkedIn-specific formatting artifacts.
+
+For the **Text Preprocessing** stage, we applied **text normalization, lowercasing, regular expression cleaning, punctuation removal, whitespace normalization, tokenization, stopword filtering, stemming, and bigram extraction** techniques to find out how raw LinkedIn job description text could be converted into a cleaner and more analyzable format. The outcome of the data is that unstructured job descriptions were transformed into normalized tokens and stemmed terms, LinkedIn formatting artifacts were removed, and the text was prepared in a structured form that better represents recurring skills, themes, and phrases.
+
+```{r}
+# prepare the job descriptions as a data frame
+job_text <- exp_clean |>
+  select(linkedinUrl, jobDescription) |>
+  filter(!is.na(jobDescription) & jobDescription != "") |>
+  mutate(line_id = row_number())
+
+cat("Profiles with job descriptions:", nrow(job_text), "\n")
+cat("\nBefore cleaning:\n")
+cat(job_text$jobDescription[1], "\n")
+```
+
+```{r}
+# Step 1: Normalization (lowercasing, punctuation, formatting artifacts)
+job_text <- job_text |>
+  mutate(
+    text_lower = str_to_lower(jobDescription),
+    text_clean = str_remove_all(text_lower, "[^a-zA-Z\\s]"),
+    text_clean = str_remove_all(text_clean, "\\\\n|\\\\t|\\\\r"),
+    text_clean = str_squish(text_clean)
+  )
+
+cat("After normalization:\n")
+cat(job_text$text_clean[1], "\n")
+```
+
+```{r}
+# Step 2: Tokenization
+job_words <- job_text |>
+  unnest_tokens(output = word, input = text_clean, token = "words")
+
+cat("Total tokens:", nrow(job_words), "\n")
+```
+
+```{r}
+# Step 3: Stopword Removal
+stopwords_en <- get_stopwords(language = "en", source = "snowball")
+
+job_words_clean <- job_words |>
+  anti_join(stopwords_en, by = "word") |>
+  filter(str_length(word) > 2) |>
+  filter(!str_detect(word, "^[0-9]+$"))
+
+cat("Tokens after stopword removal:", nrow(job_words_clean), "\n")
+```
+
+```{r}
+# Step 4: Stemming
+job_words_stemmed <- job_words_clean |>
+  mutate(word_stem = wordStem(word, language = "english"))
+
+cat("Unique words before stemming:", n_distinct(job_words_clean$word), "\n")
+cat("Unique stems after stemming: ", n_distinct(job_words_stemmed$word_stem), "\n")
+```
+
+```{r}
+# Step 5: Bigrams
+job_bigrams <- job_text |>
+  unnest_tokens(output = bigram, input = text_clean,
+                token = "ngrams", n = 2) |>
+  filter(!is.na(bigram))
+
+job_bigrams_clean <- job_bigrams |>
+  separate(bigram, into = c("word1", "word2"), sep = " ") |>
+  anti_join(stopwords_en, by = c("word1" = "word")) |>
+  anti_join(stopwords_en, by = c("word2" = "word")) |>
+  unite(bigram, word1, word2, sep = " ")
+```
+
+```{r}
+# Step 6: Complete Pipeline Summary
+processed_text <- job_text |>
+  unnest_tokens(output = word, input = text_clean, token = "words") |>
+  anti_join(get_stopwords(source = "snowball"), by = "word") |>
+  filter(str_length(word) > 2) |>
+  filter(!str_detect(word, "^[0-9]+$")) |>
+  mutate(word_stem = wordStem(word, language = "english")) |>
+  count(linkedinUrl, word_stem, sort = TRUE) |>
+  rename(word = word_stem)
+
+cat("Final processed text dimensions:", nrow(processed_text), "rows\n")
+```
+
+
+## 4. Feature Engineering and Variable Creation
+* Create new variables or representations needed for modeling.
+* Rescale, regroup, or bin variables as needed.
+
+For the **Feature Engineering and Variable Creation** stage, we applied **token frequency generation, stem-based representation, word-count aggregation, and n-gram feature creation** techniques to find out how the cleaned job descriptions could be converted into model-ready variables. The outcome of the data is that the text was represented through processed word counts, stemmed token features, and bigram-based phrase features, creating a structured basis for later classification and labeling tasks.
+
+```{r}
+# counting the number of skills per profile in each cleaned skills dataset
+# the 500 dataset stores skill names in the column named "skill"
+# the 5k dataset stores skill names in the column named "Skills"
+
+skills_500_count <- skills_clean |>
+  filter(!is.na(skill) & skill != "") |>
+  group_by(linkedinUrl) |>
+  summarise(skill_count = n(), .groups = "drop") |>
+  arrange(desc(skill_count))
+
+skills_5k_count <- skills_5k_clean |>
+  filter(!is.na(Skills) & Skills != "") |>
+  group_by(linkedin_url) |>
+  summarise(skill_count = n(), .groups = "drop") |>
+  arrange(desc(skill_count))
+
+# creating total_skill_count in the 5k experiences data
+# by counting the number of comma-separated skills listed in the Skills column
+exp_5k_clean <- exp_5k_clean |>
+  mutate(
+    total_skill_count = if_else(
+      is.na(Skills) | Skills == "",
+      0L,
+      str_count(Skills, ",") + 1L
+    )
+  )
+
+cat("500 dataset skill column:", "skill", "\n")
+cat("5k dataset skill column:", "Skills", "\n")
+cat("Profiles with at least one skill in 500 dataset:", nrow(skills_500_count), "\n")
+cat("Profiles with at least one skill in 5k dataset:", nrow(skills_5k_count), "\n")
+
+cat("Average skills per profile in 500 dataset:",
+    round(mean(skills_500_count$skill_count), 2), "\n")
+cat("Average skills per profile in 5k dataset:",
+    round(mean(skills_5k_count$skill_count), 2), "\n")
+cat("Average total_skill_count in 5k experiences:",
+    round(mean(exp_5k_clean$total_skill_count), 2), "\n")
+
+head(skills_500_count, 10)
+head(skills_5k_count, 10)
+head(exp_5k_clean |> select(linkedin_url, Skills, total_skill_count), 10)
+```
+
+
+## 5. Labeling and Ground Truth
+* Describe the labeling strategy.
+* Produce and include a labeled or pseudo-labeled subset of the data as output of this step.
+
+For the **Labeling and Ground Truth** stage, we applied **rule-based labeling, keyword dictionary construction, regular expression pattern matching, and pseudo-label generation** techniques to find out how documents could be assigned preliminary categories without pre-existing labeled outcomes. The outcome of the data is that a dictionary of skill-related categories was built, cleaned job-description records were matched against those patterns, and a pseudo-labeled subset was produced to support later model development and evaluation.
+
+```{r}
+# Building a data dictionary (Rule-based heuristics labeling strategy)
+data_dictionary <- tibble(
+  label = c(
+    "leadership_management",
+    "data_analysis",
+    "business_operations",
+    "customer_relations",
+    "communication_skills",
+    "strategic_planning"
+  ),
+  description = c(
+    "Leading teams, managing people, and overseeing projects",
+    "Working with data, analysis, and tools like Excel",
+    "General business tasks, operations, and office tools",
+    "Customer interaction, support, and service roles",
+    "Communication, presentations, and speaking skills",
+    "Planning, strategy, and organizational direction"
+  ),
+  keywords = c(
+    "leadership, management, project management",
+    "data analysis, excel, microsoft excel",
+    "microsoft office, operations",
+    "customer service, client, customer",
+    "communication, public speaking, presentation",
+    "strategic planning, strategy"
+  )
+)
+
+# Converting keywords into patterns for regex matching
+data_dictionary <- data_dictionary %>%
+  mutate(pattern = paste0("\\b(", keywords, ")\\b"))
+
+write.csv(data_dictionary, "data_dictionary.csv", row.names = FALSE)
+```
+
+```{r}
+# Apply dictionary labels pseudo-labeling
+jobcleaned_text <- job_text$text_clean
+
+text_df <- data.frame(
+  document = seq_along(jobcleaned_text),
+  text = sapply(jobcleaned_text, as.character),
+  stringsAsFactors = FALSE
+)
+
+tokens <- text_df %>%
+  unnest_tokens(word, text)
+
+data(stop_words)
+
+tokens_cleaned <- tokens %>%
+  anti_join(stop_words, by = "word")
+
+cleaned_docs <- tokens_cleaned %>%
+  group_by(document) %>%
+  summarise(text = paste(word, collapse = " "), .groups = "drop")
+
+# Labeling function using map and regex matching
+label_documents <- function(text_vector, dict) {
+  map_dfr(seq_along(text_vector), function(i) {
+    txt <- text_vector[i]
+    matches <- str_detect(txt, regex(dict$pattern, ignore_case = TRUE))
+    tibble(
+      document = i,
+      label = dict$label[matches]
+    )
+  })
+}
+
+# Labeling and running clean docs
+doc_labels <- label_documents(cleaned_docs$text, data_dictionary)
+head(doc_labels)
+```
+
+```{r}
+# Ground truth dataset creation initialization
+ground_truth <- cleaned_docs %>%
+  mutate(true_label = NA)
+
+# Writing dictionary as json file for later usage
+write_json(data_dictionary, "data_dictionary.json", pretty = TRUE)
+```
+
+
+## 6. Data Partitioning
+* Partition the prepared dataset into training, validation, and test splits.
+* Document the partitioning rationale.
+* Address any class imbalance issues and your mitigation strategy.
+
+For the **Data Partitioning** stage, we applied **dataset splitting logic, train-validation-test planning, and class-balance review methodology** to find out how the prepared and labeled data should be separated for model training, tuning, and testing. The outcome of the data is that the project is structured to support a future training, validation, and test workflow, although the final partitioning code and imbalance mitigation steps still need to be fully implemented in this file.
+
+```{r}
+# [Placeholder - Not Yet Implemented]
+
+```

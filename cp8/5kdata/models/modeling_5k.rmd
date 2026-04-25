@@ -1,0 +1,586 @@
+---
+title: "CP8 Modeling"
+author: "Lincoln Chanakira"
+output: html_document
+---
+
+This notebook trains and compares several multi-label skill prediction models using the encoded TF-IDF inputs created in the previous step. The goal is to evaluate candidate models on the validation and test sets, then save the final model comparison results.
+
+The setup chunk controls how code and messages appear in the rendered HTML output.
+
+```{r setup, include=FALSE}
+# Set global knitting options for cleaner rendered output.
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+# Load Packages
+
+This block loads the packages needed for reading data, manipulating tables, handling sparse matrices, training models, and evaluating predictions.
+
+```{r modeling-packages}
+# Load packages used for data handling, sparse features, and modeling.
+library(readr)
+library(dplyr)
+library(tibble)
+library(purrr)
+library(Matrix)
+library(glmnet)
+library(xgboost)
+library(caret)
+library(class)
+```
+
+# Load Encoded Inputs
+
+This block imports the saved train, validation, and test split objects from the model input encoding step. These objects contain the TF-IDF feature matrices, multi-label target matrices, profile metadata, and retained skill names.
+
+```{r load-encoded-data}
+# Load encoded feature matrices, target matrices, profiles, and skill labels.
+split_input_path <- "../../../data/processed/train_validation_test_split.rds"
+
+split_objects <- readRDS(split_input_path)
+
+X_train <- split_objects$X_train
+X_validation <- split_objects$X_validation
+X_test <- split_objects$X_test
+
+y_train <- as.matrix(split_objects$y_train)
+y_validation <- as.matrix(split_objects$y_validation)
+y_test <- as.matrix(split_objects$y_test)
+
+train_profiles <- split_objects$train_profiles
+validation_profiles <- split_objects$validation_profiles
+test_profiles <- split_objects$test_profiles
+retained_skills <- split_objects$retained_skills
+
+cat("X_train dimensions:", dim(X_train), "\n")
+cat("X_validation dimensions:", dim(X_validation), "\n")
+cat("X_test dimensions:", dim(X_test), "\n")
+cat("y_train dimensions:", dim(y_train), "\n")
+cat("y_validation dimensions:", dim(y_validation), "\n")
+cat("y_test dimensions:", dim(y_test), "\n")
+```
+
+# Modeling Scope
+
+This block limits the modeling run to the most common skill labels. The full encoded target matrix contains many labels, so this cap keeps the notebook computationally practical while still comparing the requested model types.
+
+```{r modeling-scope}
+# Select the most frequent labels so the full modeling workflow runs reliably.
+max_model_labels <- 25
+
+label_prevalence <- colMeans(y_train)
+label_order <- order(label_prevalence, decreasing = TRUE)
+selected_label_indices <- label_order[seq_len(min(max_model_labels, length(label_order)))]
+
+y_train <- y_train[, selected_label_indices, drop = FALSE]
+y_validation <- y_validation[, selected_label_indices, drop = FALSE]
+y_test <- y_test[, selected_label_indices, drop = FALSE]
+retained_skills <- colnames(y_train)
+
+cat("Modeled labels:", ncol(y_train), "\n")
+cat("Top modeled skills:\n")
+print(retained_skills)
+```
+
+# Helper Functions
+
+This block defines reusable evaluation utilities. The metrics are computed in both micro and macro form so the results capture both overall prediction quality and label-by-label performance. The helper functions also tune one threshold per skill label on the validation set instead of forcing every model to use a fixed 0.50 cutoff.
+
+```{r evaluation-functions}
+# Define metric helpers used consistently across all candidate models.
+safe_divide <- function(num, den) {
+  ifelse(den == 0, 0, num / den)
+}
+
+evaluate_multilabel <- function(y_true, y_pred_binary) {
+  y_true <- as.matrix(y_true)
+  y_pred_binary <- as.matrix(y_pred_binary)
+
+  tp_micro <- sum((y_true == 1) & (y_pred_binary == 1))
+  fp_micro <- sum((y_true == 0) & (y_pred_binary == 1))
+  fn_micro <- sum((y_true == 1) & (y_pred_binary == 0))
+
+  precision_micro <- safe_divide(tp_micro, tp_micro + fp_micro)
+  recall_micro <- safe_divide(tp_micro, tp_micro + fn_micro)
+  f1_micro <- safe_divide(
+    2 * precision_micro * recall_micro,
+    precision_micro + recall_micro
+  )
+
+  precision_by_label <- numeric(ncol(y_true))
+  recall_by_label <- numeric(ncol(y_true))
+  f1_by_label <- numeric(ncol(y_true))
+
+  for (j in seq_len(ncol(y_true))) {
+    tp <- sum((y_true[, j] == 1) & (y_pred_binary[, j] == 1))
+    fp <- sum((y_true[, j] == 0) & (y_pred_binary[, j] == 1))
+    fn <- sum((y_true[, j] == 1) & (y_pred_binary[, j] == 0))
+
+    p <- safe_divide(tp, tp + fp)
+    r <- safe_divide(tp, tp + fn)
+    f <- safe_divide(2 * p * r, p + r)
+
+    precision_by_label[j] <- p
+    recall_by_label[j] <- r
+    f1_by_label[j] <- f
+  }
+
+  tibble(
+    precision_micro = precision_micro,
+    recall_micro = recall_micro,
+    f1_micro = f1_micro,
+    precision_macro = mean(precision_by_label, na.rm = TRUE),
+    recall_macro = mean(recall_by_label, na.rm = TRUE),
+    f1_macro = mean(f1_by_label, na.rm = TRUE)
+  )
+}
+
+predict_binary_from_probs <- function(prob_matrix, threshold = 0.50) {
+  prob_matrix <- as.matrix(prob_matrix)
+  if (length(threshold) == 1) {
+    return(ifelse(prob_matrix >= threshold, 1L, 0L))
+  }
+
+  threshold_matrix <- matrix(
+    rep(threshold, each = nrow(prob_matrix)),
+    nrow = nrow(prob_matrix),
+    byrow = FALSE
+  )
+
+  ifelse(prob_matrix >= threshold_matrix, 1L, 0L)
+}
+
+has_two_classes <- function(y) {
+  length(unique(y)) == 2
+}
+
+tune_label_thresholds <- function(y_true, prob_matrix, grid = seq(0.05, 0.95, by = 0.05)) {
+  y_true <- as.matrix(y_true)
+  prob_matrix <- as.matrix(prob_matrix)
+  thresholds <- rep(0.50, ncol(y_true))
+  names(thresholds) <- colnames(y_true)
+
+  for (j in seq_len(ncol(y_true))) {
+    if (sum(y_true[, j] == 1) == 0) {
+      next
+    }
+
+    scores <- sapply(grid, function(threshold) {
+      pred <- ifelse(prob_matrix[, j] >= threshold, 1L, 0L)
+      tp <- sum((y_true[, j] == 1) & (pred == 1))
+      fp <- sum((y_true[, j] == 0) & (pred == 1))
+      fn <- sum((y_true[, j] == 1) & (pred == 0))
+      precision <- safe_divide(tp, tp + fp)
+      recall <- safe_divide(tp, tp + fn)
+      safe_divide(2 * precision * recall, precision + recall)
+    })
+
+    best_index <- which.max(scores)
+    thresholds[j] <- grid[best_index]
+  }
+
+  thresholds
+}
+
+make_constant_probs <- function(n_rows, values, col_names) {
+  probs <- matrix(
+    rep(values, each = n_rows),
+    nrow = n_rows,
+    byrow = FALSE
+  )
+  colnames(probs) <- col_names
+  probs
+}
+```
+
+# Baseline Model: Frequency Prior
+
+This baseline predicts each skill using its training-set prevalence. It provides a simple reference point so the trained models can be judged against a non-learning approach.
+
+```{r baseline-model}
+# Use training-set label prevalence as a simple baseline probability.
+skill_prevalence <- colMeans(y_train)
+
+baseline_probs_validation <- matrix(
+  rep(skill_prevalence, each = nrow(y_validation)),
+  nrow = nrow(y_validation),
+  byrow = FALSE
+)
+
+baseline_probs_test <- matrix(
+  rep(skill_prevalence, each = nrow(y_test)),
+  nrow = nrow(y_test),
+  byrow = FALSE
+)
+
+colnames(baseline_probs_validation) <- colnames(y_train)
+colnames(baseline_probs_test) <- colnames(y_train)
+
+baseline_thresholds <- tune_label_thresholds(y_validation, baseline_probs_validation)
+
+baseline_pred_validation <- predict_binary_from_probs(
+  baseline_probs_validation,
+  threshold = baseline_thresholds
+)
+baseline_pred_test <- predict_binary_from_probs(
+  baseline_probs_test,
+  threshold = baseline_thresholds
+)
+
+baseline_validation_metrics <- evaluate_multilabel(y_validation, baseline_pred_validation)
+baseline_test_metrics <- evaluate_multilabel(y_test, baseline_pred_test)
+
+baseline_validation_metrics
+baseline_test_metrics
+```
+
+# Model 1: One-vs-Rest Logistic Regression
+
+This model trains one binary regularized logistic regression per skill label. Logistic regression is a strong baseline for TF-IDF features because it handles sparse text matrices well and is relatively interpretable. Labels with too few positive or negative training examples fall back to the training-set prevalence so the one-vs-rest loop does not fail on sparse labels.
+
+```{r logistic-regression-model}
+# Train one ridge logistic regression model for each selected skill label.
+logit_models <- vector("list", ncol(y_train))
+logit_validation_probs <- matrix(0, nrow = nrow(X_validation), ncol = ncol(y_train))
+logit_test_probs <- matrix(0, nrow = nrow(X_test), ncol = ncol(y_train))
+
+for (j in seq_len(ncol(y_train))) {
+  y_j <- y_train[, j]
+  class_counts <- table(factor(y_j, levels = c(0, 1)))
+  min_class_count <- min(class_counts)
+
+  if (has_two_classes(y_j) && min_class_count >= 2) {
+    if (min_class_count >= 3) {
+      model_j <- cv.glmnet(
+        x = X_train,
+        y = y_j,
+        family = "binomial",
+        alpha = 0,
+        type.measure = "class",
+        nfolds = min(5, min_class_count)
+      )
+
+      logit_validation_probs[, j] <- as.numeric(
+        predict(model_j, newx = X_validation, s = "lambda.min", type = "response")
+      )
+
+      logit_test_probs[, j] <- as.numeric(
+        predict(model_j, newx = X_test, s = "lambda.min", type = "response")
+      )
+    } else {
+      model_j <- glmnet(
+        x = X_train,
+        y = y_j,
+        family = "binomial",
+        alpha = 0,
+        lambda = 0.01
+      )
+
+      logit_validation_probs[, j] <- as.numeric(
+        predict(model_j, newx = X_validation, s = 0.01, type = "response")
+      )
+
+      logit_test_probs[, j] <- as.numeric(
+        predict(model_j, newx = X_test, s = 0.01, type = "response")
+      )
+    }
+
+    logit_models[[j]] <- model_j
+  } else {
+    logit_validation_probs[, j] <- mean(y_j)
+    logit_test_probs[, j] <- mean(y_j)
+  }
+}
+
+colnames(logit_validation_probs) <- colnames(y_train)
+colnames(logit_test_probs) <- colnames(y_train)
+
+logit_thresholds <- tune_label_thresholds(y_validation, logit_validation_probs)
+
+logit_pred_validation <- predict_binary_from_probs(
+  logit_validation_probs,
+  threshold = logit_thresholds
+)
+logit_pred_test <- predict_binary_from_probs(
+  logit_test_probs,
+  threshold = logit_thresholds
+)
+
+logit_validation_metrics <- evaluate_multilabel(y_validation, logit_pred_validation)
+logit_test_metrics <- evaluate_multilabel(y_test, logit_pred_test)
+
+logit_validation_metrics
+logit_test_metrics
+```
+
+# Model 2: One-vs-Rest KNN
+
+This model predicts skills based on nearby profiles in TF-IDF space. The feature matrix is reduced before converting to dense format because KNN is memory-intensive on high-dimensional sparse text features. The dense matrices are scaled using the training-set center and scale values so validation and test data are transformed consistently.
+
+```{r knn-model}
+# Reduce TF-IDF features before running KNN to keep runtime and memory manageable.
+knn_feature_count <- min(500, ncol(X_train))
+feature_variance <- Matrix::colMeans(X_train != 0)
+top_feature_indices <- order(feature_variance, decreasing = TRUE)[seq_len(knn_feature_count)]
+
+X_train_dense_raw <- as.matrix(X_train[, top_feature_indices])
+X_validation_dense_raw <- as.matrix(X_validation[, top_feature_indices])
+X_test_dense_raw <- as.matrix(X_test[, top_feature_indices])
+
+knn_center <- colMeans(X_train_dense_raw)
+knn_scale <- apply(X_train_dense_raw, 2, sd)
+knn_scale[is.na(knn_scale) | knn_scale == 0] <- 1
+
+X_train_dense <- scale(X_train_dense_raw, center = knn_center, scale = knn_scale)
+X_validation_dense <- scale(X_validation_dense_raw, center = knn_center, scale = knn_scale)
+X_test_dense <- scale(X_test_dense_raw, center = knn_center, scale = knn_scale)
+
+k_value <- 5
+
+knn_validation_probs <- matrix(0, nrow = nrow(X_validation_dense), ncol = ncol(y_train))
+knn_test_probs <- matrix(0, nrow = nrow(X_test_dense), ncol = ncol(y_train))
+
+for (j in seq_len(ncol(y_train))) {
+  y_j <- y_train[, j]
+
+  if (has_two_classes(y_j)) {
+    train_labels_factor <- factor(y_j, levels = c(0, 1))
+
+    pred_validation <- knn(
+      train = X_train_dense,
+      test = X_validation_dense,
+      cl = train_labels_factor,
+      k = k_value,
+      prob = TRUE
+    )
+
+    pred_validation_char <- as.character(pred_validation)
+    pred_validation_prob <- ifelse(
+      pred_validation_char == "1",
+      attr(pred_validation, "prob"),
+      1 - attr(pred_validation, "prob")
+    )
+
+    knn_validation_probs[, j] <- pred_validation_prob
+
+    pred_test <- knn(
+      train = X_train_dense,
+      test = X_test_dense,
+      cl = train_labels_factor,
+      k = k_value,
+      prob = TRUE
+    )
+
+    pred_test_char <- as.character(pred_test)
+    pred_test_prob <- ifelse(
+      pred_test_char == "1",
+      attr(pred_test, "prob"),
+      1 - attr(pred_test, "prob")
+    )
+
+    knn_test_probs[, j] <- pred_test_prob
+  } else {
+    knn_validation_probs[, j] <- mean(y_j)
+    knn_test_probs[, j] <- mean(y_j)
+  }
+}
+
+colnames(knn_validation_probs) <- colnames(y_train)
+colnames(knn_test_probs) <- colnames(y_train)
+
+knn_thresholds <- tune_label_thresholds(y_validation, knn_validation_probs)
+
+knn_pred_validation <- predict_binary_from_probs(
+  knn_validation_probs,
+  threshold = knn_thresholds
+)
+knn_pred_test <- predict_binary_from_probs(
+  knn_test_probs,
+  threshold = knn_thresholds
+)
+
+knn_validation_metrics <- evaluate_multilabel(y_validation, knn_pred_validation)
+knn_test_metrics <- evaluate_multilabel(y_test, knn_pred_test)
+
+knn_validation_metrics
+knn_test_metrics
+```
+
+# Model 3: One-vs-Rest XGBoost
+
+This model trains one gradient-boosted tree classifier per skill label. XGBoost can capture non-linear relationships between terms and skills, which gives it a different modeling strategy from logistic regression and KNN. Each label gets its own `scale_pos_weight` value so rare positive labels receive more weight during training.
+
+```{r xgboost-model}
+# Train one XGBoost binary classifier for each selected skill label.
+xgb_models <- vector("list", ncol(y_train))
+xgb_validation_probs <- matrix(0, nrow = nrow(X_validation), ncol = ncol(y_train))
+xgb_test_probs <- matrix(0, nrow = nrow(X_test), ncol = ncol(y_train))
+
+for (j in seq_len(ncol(y_train))) {
+  y_j <- y_train[, j]
+  positive_count <- sum(y_j == 1)
+  negative_count <- sum(y_j == 0)
+
+  if (has_two_classes(y_j) && positive_count > 0 && negative_count > 0) {
+    label_scale_pos_weight <- negative_count / positive_count
+
+    dtrain <- xgb.DMatrix(data = X_train, label = y_j)
+    dvalidation <- xgb.DMatrix(data = X_validation, label = y_validation[, j])
+    dtest <- xgb.DMatrix(data = X_test, label = y_test[, j])
+
+    watchlist <- list(train = dtrain, eval = dvalidation)
+
+    model_j <- xgb.train(
+      params = list(
+        objective = "binary:logistic",
+        eval_metric = "logloss",
+        max_depth = 4,
+        eta = 0.10,
+        subsample = 0.80,
+        colsample_bytree = 0.80,
+        scale_pos_weight = label_scale_pos_weight
+      ),
+      data = dtrain,
+      nrounds = 50,
+      watchlist = watchlist,
+      early_stopping_rounds = 10,
+      verbose = 0
+    )
+
+    xgb_models[[j]] <- model_j
+
+    xgb_validation_probs[, j] <- predict(model_j, newdata = dvalidation)
+    xgb_test_probs[, j] <- predict(model_j, newdata = dtest)
+  } else {
+    xgb_validation_probs[, j] <- mean(y_j)
+    xgb_test_probs[, j] <- mean(y_j)
+  }
+}
+
+colnames(xgb_validation_probs) <- colnames(y_train)
+colnames(xgb_test_probs) <- colnames(y_train)
+
+xgb_thresholds <- tune_label_thresholds(y_validation, xgb_validation_probs)
+
+xgb_pred_validation <- predict_binary_from_probs(
+  xgb_validation_probs,
+  threshold = xgb_thresholds
+)
+xgb_pred_test <- predict_binary_from_probs(
+  xgb_test_probs,
+  threshold = xgb_thresholds
+)
+
+xgb_validation_metrics <- evaluate_multilabel(y_validation, xgb_pred_validation)
+xgb_test_metrics <- evaluate_multilabel(y_test, xgb_pred_test)
+
+xgb_validation_metrics
+xgb_test_metrics
+```
+
+# Compare Model Performance
+
+This block combines validation and test metrics into comparison tables. The validation set is used for model selection, while the test set provides a final held-out performance check.
+
+```{r compare-models}
+# Combine metrics from all candidate models into validation and test tables.
+validation_results <- bind_rows(
+  baseline_validation_metrics |> mutate(model = "Baseline Frequency Prior"),
+  logit_validation_metrics |> mutate(model = "Logistic Regression"),
+  knn_validation_metrics |> mutate(model = "KNN"),
+  xgb_validation_metrics |> mutate(model = "XGBoost")
+) |>
+  select(model, everything())
+
+test_results <- bind_rows(
+  baseline_test_metrics |> mutate(model = "Baseline Frequency Prior"),
+  logit_test_metrics |> mutate(model = "Logistic Regression"),
+  knn_test_metrics |> mutate(model = "KNN"),
+  xgb_test_metrics |> mutate(model = "XGBoost")
+) |>
+  select(model, everything())
+
+validation_results
+test_results
+```
+
+# Select Final Model
+
+This block selects the model with the strongest validation F1-micro score. F1-micro is useful for this multi-label task because it balances precision and recall across all skill predictions.
+
+```{r select-final-model}
+# Choose the final candidate using validation F1-micro.
+best_model_name <- validation_results |>
+  arrange(desc(f1_micro)) |>
+  slice(1) |>
+  pull(model)
+
+cat("Selected final model based on validation F1-micro:", best_model_name, "\n")
+```
+
+# Inspect Final Predictions
+
+This block summarizes how often the selected model predicts each skill in the test set. Comparing predicted counts with actual counts helps reveal whether the selected model underpredicts or overpredicts common skills.
+
+```{r inspect-predictions}
+# Pull predictions from the selected model and compare predicted versus actual skill counts.
+if (best_model_name == "Logistic Regression") {
+  final_test_probs <- logit_test_probs
+  final_test_pred <- logit_pred_test
+} else if (best_model_name == "KNN") {
+  final_test_probs <- knn_test_probs
+  final_test_pred <- knn_pred_test
+} else if (best_model_name == "XGBoost") {
+  final_test_probs <- xgb_test_probs
+  final_test_pred <- xgb_pred_test
+} else {
+  final_test_probs <- baseline_probs_test
+  final_test_pred <- baseline_pred_test
+}
+
+predicted_skill_counts <- colSums(final_test_pred)
+actual_skill_counts <- colSums(y_test)
+
+prediction_summary <- tibble(
+  skill = colnames(y_test),
+  actual_count = actual_skill_counts,
+  predicted_count = predicted_skill_counts
+) |>
+  arrange(desc(actual_count))
+
+head(prediction_summary, 20)
+```
+
+# Save Modeling Results
+
+This block saves the model comparison tables, selected model name, prediction summary, and modeled skill labels. Saving these objects makes it easier to reuse the modeling results in the final CP8 write-up.
+
+```{r save-model-results}
+# Save the final modeling outputs for reporting and downstream analysis.
+model_results_output_path <- "../../../data/processed/cp8_model_results.rds"
+
+model_results <- list(
+  validation_results = validation_results,
+  test_results = test_results,
+  baseline_validation_metrics = baseline_validation_metrics,
+  baseline_test_metrics = baseline_test_metrics,
+  logit_validation_metrics = logit_validation_metrics,
+  logit_test_metrics = logit_test_metrics,
+  knn_validation_metrics = knn_validation_metrics,
+  knn_test_metrics = knn_test_metrics,
+  xgb_validation_metrics = xgb_validation_metrics,
+  xgb_test_metrics = xgb_test_metrics,
+  baseline_thresholds = baseline_thresholds,
+  logit_thresholds = logit_thresholds,
+  knn_thresholds = knn_thresholds,
+  xgb_thresholds = xgb_thresholds,
+  best_model_name = best_model_name,
+  prediction_summary = prediction_summary,
+  retained_skills = retained_skills
+)
+
+saveRDS(model_results, model_results_output_path)
+
+cat("Model results saved to:", model_results_output_path, "\n")
+```

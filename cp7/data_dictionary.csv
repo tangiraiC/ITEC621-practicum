@@ -1,0 +1,7 @@
+"label","description","keywords","pattern"
+"leadership_management","Leading teams, managing people, and overseeing projects","leadership, management, project management","\b(leadership, management, project management)\b"
+"data_analysis","Working with data, analysis, and tools like Excel","data analysis, excel, microsoft excel","\b(data analysis, excel, microsoft excel)\b"
+"business_operations","General business tasks, operations, and office tools","microsoft office, operations","\b(microsoft office, operations)\b"
+"customer_relations","Customer interaction, support, and service roles","customer service, client, customer","\b(customer service, client, customer)\b"
+"communication_skills","Communication, presentations, and speaking skills","communication, public speaking, presentation","\b(communication, public speaking, presentation)\b"
+"strategic_planning","Planning, strategy, and organizational direction","strategic planning, strategy","\b(strategic planning, strategy)\b"

@@ -1,0 +1,815 @@
+---
+title: "CP7_The Insight Collective"
+author: "Mekdelawit Dejene, Hanna Weinstein, Ayman Ibenbrahim, Lincoln Chank"
+date: "2026-04-09"
+output:
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Executive Summary
+This document outlines the data preparation, text preprocessing, feature engineering, labeling, and data partitioning steps performed to generate a structured list of professional skills from a profile's current and previous job descriptions on the Kogod Career Development LinkedIn profile dataset. 
+
+```{r}
+# install required packages
+# install.packages(c("readr", "readxl", "dplyr", "tidyr", "stringr", "tidytext", 
+#                    "SnowballC", "stopwords", "tm", "ggplot2", "forcats", 
+#                    "scales", "wordcloud", "ggraph", "igraph", "tidyverse"))
+```
+
+
+```{r}
+# Libraries used for this project
+
+library(readr)       # used to read csv files into R so we can start working with the data
+library(readxl)      # used to read Excel files if we need any xlsx inputs
+library(dplyr)       # used to filter, select, mutate, count, and summarize the data
+library(tidyr)       # used to reshape data and split/combine columns like separate(), unite(), and pivot_wider()
+library(stringr)     # used to clean text like making everything lowercase and removing extra characters
+library(tidytext)    # used for text mining steps like tokenizing words, removing stopwords, and creating TF-IDF scores
+library(SnowballC)   # used for stemming so similar words get reduced to the same root form
+library(stopwords)   # used to pull common stopword lists like 'the', 'and', and 'of'
+library(tm)          # text mining package that supports document-style text processing
+library(ggplot2)     # used to make charts and visual checks
+library(forcats)     # used to reorder categories in charts so plots are easier to read
+library(scales)      # used to format chart axes and percentages so outputs are cleaner
+library(wordcloud)   # used if we want to create a word cloud for quick text patterns
+library(tidyverse)   # bundle of core packages for wrangling and exploring the data
+library(ggraph)      # used for network-style visualizations if needed later
+library(igraph)      # used to build and work with graph/network objects if needed later
+```
+
+## Part 1: Loading and Checking Data
+
+### Data Cleaning Pipeline
+### GitHub Repository: <https://github.com/tangiraiC/ITEC621-practicum>
+```{r}
+# To reproduce the cleaned data, run quarto::quarto_render("datacleaning.qmd") before running this script.
+
+# Load the cleaned datasets that we will use throughout the rest of the assignment
+exp_clean <- read.csv("data/processed/cleaned_500_experiences.csv", 
+                      stringsAsFactors = FALSE)
+currexp_clean <- read.csv("data/processed/cleaned_500_current_experiences.csv", 
+                          stringsAsFactors = FALSE)
+skills_clean <- read.csv("data/processed/cleaned_500_skills.csv", 
+                         stringsAsFactors = FALSE)
+exp_5k_clean <- read.csv("data/processed/cleaned_5k_experiences.csv", 
+                         stringsAsFactors = FALSE)
+skills_5k_clean <- read.csv("data/processed/cleaned_5k_skills.csv", 
+                            stringsAsFactors = FALSE)
+```
+
+### Inspecting Dataset Dimensions
+```{r}
+# Resource used to help: https://www.w3schools.com/r/r_data_frames.asp
+
+# Check how many rows and columns each dataset has so we know the size of each file before modeling
+file_summary <- cbind(
+  File = c("500 experiences", "500 current experiences","500 skills", "5k experiences", "5k skills"),
+  Rows = c(nrow(exp_clean), nrow(currexp_clean), nrow(skills_clean), nrow(exp_5k_clean), nrow(skills_5k_clean)),
+  Columns = c(ncol(exp_clean), ncol(currexp_clean), ncol(skills_clean), ncol(exp_5k_clean), ncol(skills_5k_clean)))
+
+print(file_summary) 
+
+# Output meaning: this table shows the size of each dataset and helps us confirm the files loaded correctly.
+```
+
+### Inspecting Schema and Structure
+```{r}
+# Check the column names so we can see what variables are available in each dataset
+names(exp_clean)
+names(exp_5k_clean)
+names(skills_5k_clean)
+```
+
+```{r}
+# Check the structure so we can verify data types, variable formats, and a sample of values
+str(exp_clean)
+str(exp_5k_clean)
+str(skills_5k_clean)
+```
+
+## Part 2: Data Quality and Validation 
+
+```{r}
+# Running basic data quality checks to see missing values, duplicates, and whether key fields are usable
+
+# Counts missing values per dataset and per column, then checks for duplicate or missing LinkedIn URLs to ensure profiles can be uniquely identified and safely joined later.
+sum(is.na(exp_clean)) 
+sum(is.na(exp_5k_clean))
+sum(is.na(skills_5k_clean))
+```
+
+```{r}
+# Check which columns contain missing values so we know where the gaps are coming from
+colSums(is.na(exp_clean))
+colSums(is.na(exp_5k_clean))
+
+# Output meaning: most missing values are in timing or background fields like job dates, industry, and company name.
+# Our main fields for this project, like LinkedIn URL and job description, are clean.
+```
+
+```{r}
+# Check for duplicate LinkedIn URLs because each profile should ideally appear once
+sum(duplicated(exp_clean$linkedinUrl))
+sum(duplicated(exp_5k_clean$linkedinUrl))
+
+# Output meaning: no duplicate LinkedIn URLs showed up here, so profile IDs look clean.
+```
+
+```{r}
+# Check for missing LinkedIn URLs because we need them as profile identifiers
+sum(is.na(exp_clean$linkedinUrl))
+sum(is.na(exp_5k_clean$linkedin_url))
+
+# Output meaning: there are no missing profile links in these key files.
+```
+
+```{r}
+# Check how many profiles actually have a usable job description in both datasets
+sum(!is.na(exp_clean$jobDescription) & exp_clean$jobDescription !="")
+sum(!is.na(exp_5k_clean$current_job_description) & exp_5k_clean$current_job_description !="")
+
+# Turn that count into a percentage so it is easier to compare coverage across datasets
+sum(!is.na(exp_clean$jobDescription) & exp_clean$jobDescription != "") / 
+nrow(exp_clean) * 100
+sum(!is.na(exp_5k_clean$current_job_description) & exp_5k_clean$current_job_description !="")/ nrow(exp_5k_clean) * 100
+
+# Output meaning: Counts non‑empty job descriptions in 500 vs 5k datasets, converts to percentages, and concludes that the 500‑profile dataset has much better text coverage and will be the main source for text analysis.The 500 dataset is way more complete (about 70% coverage), while the 5k dataset is only around 35%.
+
+# The 5k dataset will be used to fill in gaps as needed.
+```
+
+## Part 3: Text Preprocessing
+
+```{r message=FALSE, warning=FALSE}
+# Start building the text analysis dataset using the professor's text analytics workflow as a guide
+# Keep only profiles with a real job description and make a clean text table to work from
+job_text <- exp_clean |>
+  filter(!is.na(jobDescription) & jobDescription != "") |>
+  mutate(line_id = row_number()) |>
+  select(linkedinUrl, jobDescription, line_id)
+
+cat("Profiles with job descriptions:", nrow(job_text), "\n")
+# Output meaning: this tells us how many profiles actually moved into the text preprocessing stage.
+cat("\nBefore cleaning:\n")
+cat(job_text$jobDescription[1], "\n")
+```
+
+```{r}
+# Step 1: normalize the text so everything is in a consistent format before tokenizing
+  # This part lowercases the text, removes bullets and line breaks, drops punctuation/numbers, and trims extra spaces
+job_text <- job_text |>
+  mutate(text_lower = str_to_lower(jobDescription),
+    text_clean = str_remove_all(text_lower, "•|\\\\t|\\\\n|\\\\r"),
+    text_clean = str_remove_all(text_clean, "[^a-zA-Z\\s]"),
+    text_clean = str_squish(text_clean))
+
+cat("After normalization:\n")
+cat(job_text$text_clean[1], "\n")
+
+# Quick quality check to compare the original job description with the cleaned version
+job_text |>
+  filter(str_detect(jobDescription, "[^a-zA-Z\\s]")) |>
+  head(6) |>
+  select(line_id, jobDescription, text_clean)
+
+# Output meaning: the cleaned example is now lowercase, simpler, and easier to tokenize.
+```
+
+```{r}
+# Step 2: split each cleaned description into individual words (tokens)
+job_words <- job_text |>
+  select(linkedinUrl, line_id, text_clean) |>
+  unnest_tokens(output = word, input = text_clean, token = "words")
+
+# Quick check so we can see how many total tokens we created and what they look like
+cat("Total tokens:", nrow(job_words), "\n")
+
+cat("Average tokens per profile:", round(nrow(job_words)/nrow(job_text), 1), "\n")
+job_words |> head(15)
+
+# Output meaning: Splits cleaned descriptions into word tokens, counts total tokens and average tokens per profile, and inspects a sample to ensure tokens look reasonable. This gives us the size of the tokenized dataset before more cleaning steps.
+```
+
+```{r}
+# Step 3: remove common filler words so the remaining words are more meaningful. Uses a stopword list plus custom filtersß to keep only meaningful words, then compares token counts before and after.
+
+stopwords_en <- get_stopwords(language = "en", source = "snowball")
+
+cat("Number of stopwords:", nrow(stopwords_en), "\n")
+head(stopwords_en, 20)
+```
+
+```{r}
+job_words_clean <- job_words |>
+  anti_join(stopwords_en, by = "word") |>
+  filter(str_length(word) > 2) |>
+  filter(!str_detect(word, "^[0-9]+$")) |>
+  # Also remove a few text artifacts we found during review that are not real skills or useful words
+  
+  filter(!word %in% c("eg", "pgi", "ive", "jee", "mis", "san"))
+ # Examples: 'eg' came from e.g.,
+
+cat("Tokens before stopword removal:", nrow(job_words), "\n")
+```
+
+```{r}
+cat("Tokens after stopword removal: ", nrow(job_words_clean), "\n")
+# Output meaning: this number dropped because we removed filler words and kept more useful terms.
+```
+
+```{r}
+# Look at the most common meaningful words after stopword removal
+job_words_clean |>
+  count(word, sort = TRUE) |>
+  head(20)
+
+# Output meaning: after cleaning, the top words are mostly business and management terms.
+# That matches what we expected from the LinkedIn profiles in this dataset.
+```
+
+```{r}
+# Compare top word frequencies before and after stopword removal to show that cleaning improved the text
+bind_rows(
+  job_words |> count(word, sort = TRUE) |> slice(1:20) |> mutate(stage = "Before Stopword Removal"),
+  job_words_clean |> count(word, sort = TRUE) |> slice(1:20) |> mutate(stage = "After Stopword Removal")) |>
+  mutate(word = reorder_within(word, n, stage)) |>
+  ggplot(aes(x = word, y = n, fill = stage)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~stage, scales = "free") +
+  scale_x_reordered() +
+  coord_flip() +
+  scale_fill_manual(values = c("Before Stopword Removal" = "orange",
+                               "After Stopword Removal"  = "blue")) +
+  labs(
+    title = "Word Frequency: Before vs. After Stopword Removal",
+    subtitle = "LinkedIn Job Descriptions",
+    x = NULL, y = "Count") +
+  theme_minimal(base_size = 12)
+```
+
+```{r}
+# Step 4: use stemming as a first pass to group similar word forms together
+# Checking what it looks like before
+cat("Unique words before stemming:", n_distinct(job_words_clean$word), "\n")
+```
+
+```{r}
+job_words_stemmed <- job_words_clean |>
+  mutate(word_stem = wordStem(word, language = "english"))
+
+cat("Unique stems after stemming: ", n_distinct(job_words_stemmed$word_stem), "\n")
+
+
+job_words_stemmed |>
+  filter(word != word_stem) |>
+  distinct(word, word_stem) |>
+  head(20)
+
+# Output meaning: fewer unique stems means similar words are being grouped together.
+```
+
+```{r}
+# Compare vocabulary size before and after stemming to see how much the word list got reduced
+cat("Vocabulary reduction:", 
+    round((1 - n_distinct(job_words_stemmed$word_stem)/n_distinct(job_words_clean$word)) * 100, 1),
+    "%\n")
+
+# Review a sample of stems to make sure the stemming step still looks reasonable
+job_words_stemmed |>
+  distinct(word, word_stem) |>
+  filter(str_length(word_stem) <= 3) |>
+  head(15)
+
+# Output meaning: stemming gives us a smaller and cleaner vocabulary, which helps later skill matching steps.
+```
+
+```{r}
+# Step 5: create bigrams so we can keep common two-word phrases, not just single words
+library(tidyr)
+job_bigrams <- job_text |>
+  unnest_tokens(output = bigram, input = text_clean, token = "ngrams", n = 2) |>
+  filter(!is.na(bigram))
+
+# Quick check so we can see how many total tokens we created and what they look likes 
+job_bigrams |>
+  count(bigram, sort = TRUE) |>
+  head(20)
+```
+
+```{r}
+# Remove bigrams that include stopwords because those phrases are less useful
+job_bigrams_clean <- job_bigrams |>
+  separate(bigram, into = c("word1", "word2"), sep = " ") |>
+  anti_join(stopwords_en, by = c("word1" = "word")) |>
+  anti_join(stopwords_en, by = c("word2" = "word")) |>
+  unite(bigram, word1, word2, sep = " ")
+
+# Quick check so we can see how many total tokens we created and what they look likes
+job_bigrams_clean |>
+  count(bigram, sort = TRUE) |>
+  head(20)
+```
+
+```{r}
+job_bigrams_clean |>
+  count(bigram, sort = TRUE) |>
+  head(20) |>
+  mutate(bigram = fct_reorder(bigram, n)) |>
+  ggplot(aes(x = bigram, y = n)) +
+  geom_col(fill = "blue") +
+  coord_flip() +
+  labs(
+    title = "Top 20 Bigrams (Meaningful Two-Word Phrases)",
+    subtitle = "After stopword removal — LinkedIn Job Descriptions",
+    x = NULL, y = "Frequency") +
+  theme_minimal(base_size = 12)
+```
+
+```{r}
+# Step 6: build the final processed text table that combines all of the main cleaning steps
+# This becomes our final token-level dataset for feature creation
+processed_text <- job_text |>
+  unnest_tokens(output = word, input = text_clean, token = "words") |>
+  anti_join(get_stopwords(source = "snowball"), by = "word") |>
+  filter(str_length(word) > 2) |>
+  filter(!str_detect(word, "^[0-9]+$")) |>
+  mutate(word_stem = wordStem(word, language = "english")) |>
+  count(linkedinUrl, word_stem, sort = TRUE) |>
+  rename(word = word_stem)
+
+cat("Final processed text dimensions:", nrow(processed_text), "rows\n")
+glimpse(processed_text)
+
+# Output meaning: After all the cleaning steps, we now have a token-level dataset with 38,515 rows.
+# Each row represents a word (after cleaning and stemming) tied to a specific LinkedIn profile.
+# The 'n' column shows how many times that word appears in that profile’s job description.
+# This tells us the text has been successfully cleaned, reduced to meaningful words, and is now
+# structured in a way we can use for feature creation
+```
+
+```{r}
+# Final quality checks so we can show the processed text looks reasonable before modeling
+# Check 1: Zipf's Law plot to see whether word frequency follows the pattern we usually expect in natural language text
+processed_text |>
+  count(word, wt = n, sort = TRUE) |>
+  mutate(rank = row_number()) |>
+  ggplot(aes(x = rank, y = n)) +
+  geom_line(color = "purple", linewidth = 1) +
+  scale_x_log10(labels = label_comma()) +
+  scale_y_log10(labels = label_comma()) +
+  labs(
+    title = "Zipf's Law: Word Frequency vs. Rank",
+    subtitle = "Log-log scale \u2014 a straight line confirms the expected power-law distribution",
+    x = "Rank (log scale)", y = "Frequency (log scale)") +
+  theme_minimal(base_size = 12)
+
+# It’s mostly a straight line on the log-log scale, so it follows Zipf’s Law. That tells me the text processing worked as expected.
+```
+
+```{r}
+# Check 2: look at word lengths after cleaning to make sure the token sizes seem normal
+job_words_clean |>
+  mutate(word_length = str_length(word)) |>
+  count(word_length) |>
+  ggplot(aes(x = word_length, y = n)) +
+  geom_col(fill = "blue", width = 0.9) +
+  xlim(0,30) +
+  labs(
+    title = "Token Length Distribution",
+    subtitle = "LinkedIn Job Descriptions - after stopword removal",
+    x = "Word Length (characters)", y = "Count") +
+  theme_minimal(base_size = 15)
+```
+
+```{r}
+# Check 3: manually review a random sample of processed words for anything weird
+set.seed(621)
+processed_text |>
+  distinct(word) |>
+  slice_sample(n = 20) |>
+  pull(word) |>
+  sort()
+
+# Output meaning: most stems look like real professional terms.
+# We did find a few merged words like mealsbeveragelodg, roadmapsdiscov, and flyersmail.
+# Those are most likely formatting issues from scraped LinkedIn text
+# planning to clean it up more in CP8
+```
+
+## Part 4: Feature Engineering and Variable Creation
+
+```{r}
+# Step 1: look at the top 100 self-reported skills so we can build a skill dictionary from common terms
+skills_clean |>
+  count(skill, sort = TRUE) |>
+  head(100) |>
+  pull(skill)
+```
+
+```{r}
+skills_dict <- skills_clean |>
+  count(skill, sort = TRUE) |>
+  head(100) |>
+  mutate(
+    skill_raw = tolower(skill),
+    skill_category = case_when(
+      # Technical & Data
+      skill %in% c("Data Analysis", "Analytics", "SQL", "Python",
+                   "Machine Learning", "Data Science", "Tableau",
+                   "Analysis", "Analytical Skills", "Research",
+                   "Python (Programming Language)", "Java",
+                   "Artificial Intelligence (AI)", "Bloomberg",
+                   "Financial Modeling", "Competitive Analysis",
+                   "Market Research") ~ "Technical & Data",
+      # Tools & Software
+      skill %in% c("Microsoft Excel", "Microsoft Office", "Microsoft Word",
+                   "PowerPoint", "Microsoft PowerPoint", "Social Media",
+                   "Salesforce", "Social Media Marketing") ~ "Tools",
+      # Business & Management
+      skill %in% c("Project Management", "Strategic Planning", "Management",
+                   "Program Management", "Business Development",
+                   "Operations Management", "Strategy", "Business Strategy",
+                   "Change Management", "Risk Management", "Product Management",
+                   "Process Improvement", "Business Process Improvement",
+                   "Project Planning", "Asset Management", "Account Management",
+                   "Event Management", "Portfolio Management",
+                   "Supply Chain Management", "Contract Negotiation",
+                   "Negotiation", "Business Planning",
+                   "New Business Development", "Management Consulting",
+                   "Leadership Development", "Cross-functional Team Leadership",
+                   "Sales Management", "Time Management",
+                   "Organization Skills") ~ "Business & Management",
+      # Soft Skills
+      skill %in% c("Leadership", "Communication", "Public Speaking",
+                   "Teamwork", "Customer Service", "Team Leadership",
+                   "Coaching", "Problem Solving", "Team Building",
+                   "Interpersonal Skills", "Critical thinking",
+                   "Training", "Teaching", "Presentations",
+                   "Customer Satisfaction", "Social Networking",
+                   "Community Outreach", "Public Relations") ~ "Soft Skills",
+      # Business Functions
+      skill %in% c("Marketing", "Sales", "Finance", "Accounting",
+                   "Financial Analysis", "Financial Reporting",
+                   "Financial Accounting", "Corporate Finance",
+                   "Auditing", "Investments", "Valuation",
+                   "Banking", "Equities", "Real Estate",
+                   "Commercial Real Estate", "Due Diligence",
+                   "Budgets", "Internal Controls",
+                   "Marketing Strategy", "Advertising",
+                   "Digital Marketing", "Fundraising",
+                   "Business Analysis", "Product Development",
+                   "Entrepreneurship", "Start-ups",
+                   "Event Planning", "Recruiting",
+                   "Higher Education", "Healthcare",
+                   "Manufacturing", "Government",
+                   "Writing") ~ "Business Functions",
+      TRUE ~ "Other"
+    )
+  ) |>
+  select(skill_raw, skill_category)
+
+cat("Skills in dictionary:", nrow(skills_dict), "\n")
+skills_dict |> count(skill_category) 
+
+# Output meaning: this shows how many top skills made it into our dictionary for matching.
+```
+
+```{r}
+# Step 2: create a function that checks whether a job description contains any skills from our dictionary
+# This function scans each description and returns the skills that show up in the text
+
+extract_skills_keyword <- function(text, dictionary) {
+  text_lower <- str_to_lower(text)
+  
+  dictionary |>
+    filter(map_lgl(skill_raw, function(skill) {
+      pattern <- if (str_length(skill) <= 2) {
+        str_glue("\\b{skill}\\b")
+      } else {
+        skill
+      }
+      str_detect(text_lower, regex(pattern, ignore_case = TRUE))
+    }))
+}
+
+# Test the function on a few profiles first so we can make sure the extraction logic is working
+for(i in 1:10) {
+  desc <- exp_clean$jobDescription[i]
+  if(!is.na(desc) & desc != "") {
+    skills_found <- extract_skills_keyword(desc, skills_dict)
+    if(nrow(skills_found) > 0) {
+      cat("Profile", i, "- Found", nrow(skills_found), "skills:\n")
+      print(skills_found |> select(skill_raw, skill_category))
+      cat("\n")
+    }
+  }
+}
+```
+
+```{r}
+# Step 3: apply the skill extraction function to every profile with a job description
+library(purrr)
+
+extracted_skills <- exp_clean |>
+  filter(!is.na(jobDescription) & jobDescription != "") |>
+  select(linkedinUrl, jobDescription) |>
+  mutate(
+    skills = map(jobDescription, extract_skills_keyword,
+                 dictionary = skills_dict) ) |>
+  select(-jobDescription) |>
+  unnest(skills)
+
+cat("Total skill extractions:", nrow(extracted_skills), "\n")
+# Output meaning: this is the total number of skill matches found across all job descriptions.
+cat("Profiles with at least one skill extracted:",
+    n_distinct(extracted_skills$linkedinUrl), "\n")
+
+# Output meaning:
+# Keyword matching extracted 1,670 skills across 267 profiles
+# skills were found in 267 out of 316 profiles with descriptions
+```
+
+```{r}
+# Visualize the extraction results so we can see which skills and categories appear most often
+library(ggplot2)
+library(forcats)
+
+extracted_skills |>
+  count(skill_raw, skill_category, sort = TRUE) |>
+  head(20) |>
+  mutate(skill_raw = fct_reorder(skill_raw, n)) |>
+  ggplot(aes(x = skill_raw, y = n, fill = skill_category)) +
+  geom_col() +
+  coord_flip() +
+  scale_fill_brewer(palette = "Set2") +
+  labs(
+    title    = "Top 20 Most Common Skills (Keyword Extraction)",
+    subtitle = "Colored by skill category - LinkedIn Job Descriptions",
+    x = NULL, y = "Frequency", fill = "Category") +
+  theme_minimal(base_size = 11) +
+  theme(legend.position = "right")
+```
+
+```{r}
+# Step 4: build TF-IDF features so we can measure which words matter most within each profile
+# This follows the professor's Module 3 process for turning cleaned text into model-ready features
+word_counts <- processed_text |>
+  count(linkedinUrl, word, sort = TRUE)
+
+cat("Unique words (vocabulary size):", n_distinct(word_counts$word), "\n")
+# Output meaning: vocabulary size tells us how many distinct word features we have after preprocessing.
+cat("Document-word pairs:           ", nrow(word_counts), "\n")
+cat("Sparsity:                      ",
+    round((1 - nrow(word_counts) /
+           (n_distinct(word_counts$linkedinUrl) *
+            n_distinct(word_counts$word))) * 100, 1), "%\n")
+
+tfidf <- word_counts |>
+  bind_tf_idf(term = word, document = linkedinUrl, n = n)
+
+tfidf |>
+  arrange(desc(tf_idf)) |>
+  head(15)
+
+# Output meaning: We have 6,579 unique words after cleaning, which is our total vocabulary size for the model. 
+# There are 38,515 document-word pairs, meaning these words appear across profiles that many times.
+# The sparsity is 98.1%, which is expected for text data. Most words do not appear in most profiles.
+# This tells us our dataset is large, detailed, and ready for TF-IDF, where we can identify which 
+# words are most important for each profile.
+```
+```{r}
+# Convert TF-IDF results into a wide feature matrix where each row is a profile and each column is a word feature
+# This matches the professor's Module 3 feature matrix step
+feature_matrix <- tfidf |>
+  select(linkedinUrl, word, tf_idf) |>
+  pivot_wider(
+    names_from  = word,
+    values_from = tf_idf,
+    values_fill = 0)
+
+cat("Feature matrix dimensions:", nrow(feature_matrix),
+    "rows x", ncol(feature_matrix), "columns\n")
+
+# Output meaning: each row is one LinkedIn profile and each column is a TF-IDF word feature.
+```
+
+```{r}
+# Check the TF-IDF value range so we can confirm the feature values look normal
+summary(tfidf$tf_idf)
+cat("Min TF-IDF:", min(tfidf$tf_idf), "\n")
+cat("Max TF-IDF:", max(tfidf$tf_idf), "\n")
+cat("Mean TF-IDF:", round(mean(tfidf$tf_idf), 4), "\n")
+
+# Output meaning:
+# A max TF-IDF a little above 1 is normal when using bind_tf_idf() based off guide
+# So we do not need to rescale anything here because the values are still consistent across profiles.
+```
+
+## Part 5: Labeling and Ground Truth
+
+```{r}
+# This section follows the professor's Module 4 labeling and evaluation steps
+# Ground truth idea: the self-reported skills list is our answer key
+# We are using weak supervision, which means labels are generated automatically from dictionary matches instead of manual hand-labeling
+
+# Step 1: set up the ground truth table we will compare against
+# The skills file is treated like our best available answer key
+# These are skills users already listed on their own LinkedIn profiles
+# We compare our extracted skills to those self-reported skills to see how well the extraction worked
+
+ground_truth <- skills_clean |>
+  mutate(skill_true = tolower(skill)) |>
+  select(linkedinUrl, skill_true)
+
+cat("Total ground truth skill entries:", nrow(ground_truth), "\n")
+cat("Profiles with ground truth skills:", n_distinct(ground_truth$linkedinUrl), "\n")
+
+# Output meaning: this is the number of self-reported skill records we are treating as the answer key.
+```
+
+```{r}
+# Step 2: create BIO labels for token-level skill tagging
+# This follows the professor's token labeling example from Module 4
+# BIO labels tell us whether a token starts a skill, continues a skill, or is outside a skill
+# B = the beginning of a skill phrase
+# I = the next word(s) inside that same skill phrase
+# O = not part of any skill phrase
+
+create_bio_labels <- function(text, dictionary) {
+  tokens <- tibble(
+    token    = unlist(str_split(str_to_lower(text), "\\s+")),
+    position = seq_along(token))
+  tokens <- tokens |> mutate(bio_label = "O")
+
+  for (skill in dictionary$skill_raw) {
+    skill_words <- unlist(str_split(skill, "\\s+"))
+    n_words     <- length(skill_words)
+
+    for (start_pos in seq_len(nrow(tokens) - n_words + 1)) {
+      window <- tokens$token[start_pos:(start_pos + n_words - 1)]
+      if (all(window == skill_words)) {
+        tokens$bio_label[start_pos] <-
+          paste0("B-", str_to_upper(str_replace_all(skill, "\\s+", "_")))
+        if (n_words > 1) {
+          tokens$bio_label[(start_pos + 1):(start_pos + n_words - 1)] <-
+            paste0("I-", str_to_upper(str_replace_all(skill, "\\s+", "_")))
+        }
+      }
+    }
+  }
+  tokens
+}
+
+# Show one example profile so we can see how BIO labels look in practice
+bio_example <- create_bio_labels(
+  exp_clean$jobDescription[2],
+  skills_dict)
+
+# Only display the tokens that got a skill label, not the full text
+bio_example |>
+  filter(bio_label != "O") |>
+  head(20)
+```
+
+```{r}
+# Check the label mix across a small sample of profiles
+bio_labeled <- exp_clean |>
+  filter(!is.na(jobDescription) & jobDescription != "") |>
+  head(5) |>
+  mutate(bio_tokens = map(jobDescription, create_bio_labels, dictionary = skills_dict)) |>
+  select(linkedinUrl, bio_tokens) |>
+  unnest(bio_tokens)
+
+bio_labeled |>
+  mutate(label_type = case_when(
+    str_starts(bio_label, "B-") ~ "Begin (B)",
+    str_starts(bio_label, "I-") ~ "Inside (I)",
+    TRUE ~ "Outside (O)"
+  )) |>
+  count(label_type) |>
+  mutate(pct = scales::percent(n / sum(n)))
+
+# Output meaning: Most of the tokens are labeled as Outside (O) (~98%), which means they are not
+# part of any skill phrase.
+# Only a small portion are Begin (B) or Inside (I), so actual skill terms are pretty rare in 
+# the text.
+# This kind of imbalance is expected for this type of task, since most words in a job 
+# description are not skills.
+```
+
+```{r}
+# Step 3: evaluate how well our extracted skills match the ground truth skills
+# This follows the evaluation setup from the professor's Module 4 guide
+# We compare extracted skills to self-reported skills profile by profile
+
+# First keep only profiles that appear in both datasets so the comparison is fair
+common_profiles <- intersect(
+  unique(extracted_skills$linkedinUrl),
+  unique(ground_truth$linkedinUrl))
+
+cat("Profiles in both extracted and ground truth:", 
+    length(common_profiles), "\n")
+
+# True Positives = skills we extracted that also appear in the self-reported skill list
+tp_df <- inner_join(
+  extracted_skills |> filter(linkedinUrl %in% common_profiles),
+  ground_truth     |> filter(linkedinUrl %in% common_profiles),
+  by = c("linkedinUrl", "skill_raw" = "skill_true"))
+
+# False Positives = skills we extracted that do not appear in the self-reported skill list
+fp_df <- anti_join(
+  extracted_skills |> filter(linkedinUrl %in% common_profiles),
+  ground_truth     |> filter(linkedinUrl %in% common_profiles),
+  by = c("linkedinUrl", "skill_raw" = "skill_true"))
+
+# False Negatives = skills listed in the ground truth that our extraction missed
+fn_df <- anti_join(
+  ground_truth     |> filter(linkedinUrl %in% common_profiles),
+  extracted_skills |> filter(linkedinUrl %in% common_profiles),
+  by = c("linkedinUrl", "skill_true" = "skill_raw"))
+
+TP <- nrow(tp_df)
+FP <- nrow(fp_df)
+FN <- nrow(fn_df)
+
+precision <- round(TP / (TP + FP), 3)
+recall    <- round(TP / (TP + FN), 3)
+f1        <- round(2 * precision * recall / (precision + recall), 3)
+
+tibble(
+  Metric = c("True Positives", "False Positives", "False Negatives",
+             "Precision", "Recall", "F1 Score"),
+  Value  = c(TP, FP, FN, precision, recall, f1))
+
+# Output meaning: precision tells us how many extracted skills were correct,
+# recall tells us how many true skills we successfully found,
+# and F1 gives one combined score balancing both. 
+# Our F1 score is low at 0.122, which means the model did not accurately identify skills. 
+```
+
+```{r}
+# Show a sample of missed skills so we can see what kinds of terms were not captured
+cat("Skills missed (False Negatives sample):\n")
+fn_df |> head(20)
+```
+
+## Part 6: Data Partitioning
+
+```{r}
+# This section follows the professor's train/validation/test split setup from Module 3
+# Step 1 and 2: split the profiles into training, validation, and test sets using a 70/15/15 split
+# set.seed() makes the random split reproducible so we can get the same result again later
+# This split matches the modeling plan we already laid out in CP6
+
+set.seed(621)
+
+n_profiles <- nrow(feature_matrix)
+train_size <- floor(0.70 * n_profiles)
+val_size   <- floor(0.15 * n_profiles)
+test_size  <- n_profiles - train_size - val_size
+
+shuffled_idx <- sample(n_profiles)
+
+train_idx <- shuffled_idx[1:train_size]
+val_idx   <- shuffled_idx[(train_size + 1):(train_size + val_size)]
+test_idx  <- shuffled_idx[(train_size + val_size + 1):n_profiles]
+
+train_data <- feature_matrix[train_idx, ]
+val_data   <- feature_matrix[val_idx, ]
+test_data  <- feature_matrix[test_idx, ]
+
+cat("Total profiles:", n_profiles, "\n")
+# Output meaning: these counts confirm the dataset was split into train, validation, and test sets as planned.
+cat("Training samples:  ", nrow(train_data), "(70%)\n")
+cat("Validation samples:", nrow(val_data), "(15%)\n")
+cat("Test samples:      ", nrow(test_data), "(15%)\n")
+```
+
+```{r}
+# Step 3: check whether profiles with extracted skills are balanced against profiles without them
+# Count how many profiles got at least one extracted skill
+# This helps us see whether one class is much larger than the other
+
+profiles_with_skills <- n_distinct(extracted_skills$linkedinUrl)
+profiles_without_skills <- n_profiles - profiles_with_skills
+
+cat("Profiles WITH skills extracted:", profiles_with_skills, "\n")
+# Output meaning: this check shows whether most profiles fall into one class, which matters for modeling.
+cat("Profiles WITHOUT skills extracted:", profiles_without_skills, "\n")
+cat("Class ratio:", round(profiles_with_skills / n_profiles * 100, 1), "% have skills\n")
+
+# Output meaning: The data is very imbalanced, with most tokens labeled as O and only a small
+# portion being actual skill terms (B/I).
+# This can cause the model to focus too much on the majority class and miss skills.
+# To improve this, we plan to use stratified sampling during cross-validation and possibly apply 
+# class weights in CP8 so the model pays more attention
+# to the smaller skill-related classes.
+```
+
+

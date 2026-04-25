@@ -1,0 +1,61 @@
+skill,f1,model,split
+leadership,0,GLMNET,Test
+microsoft excel,0,GLMNET,Test
+microsoft office,0,GLMNET,Test
+project management,0,GLMNET,Test
+customer service,0,GLMNET,Test
+management,0,GLMNET,Test
+strategic planning,0,GLMNET,Test
+communication,0,GLMNET,Test
+public speaking,0,GLMNET,Test
+financial analysis,0,GLMNET,Test
+microsoft word,0,GLMNET,Test
+marketing,0,GLMNET,Test
+sales,0,GLMNET,Test
+data analysis,0,GLMNET,Test
+teamwork,0,GLMNET,Test
+finance,0,GLMNET,Test
+powerpoint,0,GLMNET,Test
+program management,0,GLMNET,Test
+social media,0,GLMNET,Test
+research,0,GLMNET,Test
+accounting,0,GLMNET,Test
+microsoft powerpoint,0,GLMNET,Test
+team leadership,0,GLMNET,Test
+business strategy,0,GLMNET,Test
+marketing strategy,0,GLMNET,Test
+cross-functional team leadership,0,GLMNET,Test
+financial modeling,0,GLMNET,Test
+team building,0,GLMNET,Test
+time management,0,GLMNET,Test
+event planning,0,GLMNET,Test
+leadership,0.19354838709677416,XGBoost,Test
+microsoft excel,0.42105263157894735,XGBoost,Test
+microsoft office,0,XGBoost,Test
+project management,0.11764705882352941,XGBoost,Test
+customer service,0,XGBoost,Test
+management,0,XGBoost,Test
+strategic planning,0,XGBoost,Test
+communication,0.15384615384615385,XGBoost,Test
+public speaking,0,XGBoost,Test
+financial analysis,0.25,XGBoost,Test
+microsoft word,0,XGBoost,Test
+marketing,0,XGBoost,Test
+sales,0.16666666666666666,XGBoost,Test
+data analysis,0,XGBoost,Test
+teamwork,0,XGBoost,Test
+finance,0,XGBoost,Test
+powerpoint,0,XGBoost,Test
+program management,0,XGBoost,Test
+social media,0,XGBoost,Test
+research,0,XGBoost,Test
+accounting,0,XGBoost,Test
+microsoft powerpoint,0,XGBoost,Test
+team leadership,0,XGBoost,Test
+business strategy,0,XGBoost,Test
+marketing strategy,0.33333333333333337,XGBoost,Test
+cross-functional team leadership,0.25,XGBoost,Test
+financial modeling,0,XGBoost,Test
+team building,0,XGBoost,Test
+time management,0,XGBoost,Test
+event planning,0,XGBoost,Test

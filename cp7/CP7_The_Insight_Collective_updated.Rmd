@@ -1,0 +1,331 @@
+---
+title: "CP7_The Insight Collective"
+author: "Mekdelawit Dejene, Hanna Weinstein, Ayman Ibenbrahim, Lincoln Chanakira"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+options(scipen = 999)
+set.seed(621)
+```
+
+## Executive Summary
+
+This document prepares the Kogod Career Development LinkedIn profile data for Question B: Skills Extraction. The workflow loads the cleaned 5k experience dataset, checks data quality, combines relevant profile text fields, preprocesses the text, creates TF-IDF features, generates weakly supervised label columns from the self-reported `Skills` field, and exports train, validation, and test files for CP8 modeling.
+
+## Libraries
+
+```{r libraries}
+library(readr)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(tidytext)
+library(SnowballC)
+library(stopwords)
+library(ggplot2)
+library(forcats)
+library(scales)
+library(Matrix)
+```
+
+## Part 1: Load and Inspect the Data
+
+```{r load-data}
+# Read from the project data folder so the document renders from the cp7 directory
+exp_5k_clean <- read_csv("../data/processed/cleaned_5k_experiences.csv", show_col_types = FALSE)
+
+dim(exp_5k_clean)
+names(exp_5k_clean)
+glimpse(exp_5k_clean)
+```
+
+```{r file-summary}
+file_summary <- tibble(
+  rows = nrow(exp_5k_clean),
+  columns = ncol(exp_5k_clean),
+  unique_profiles = n_distinct(exp_5k_clean$linkedin_url)
+)
+
+file_summary
+```
+
+## Part 2: Data Quality and Validation
+
+```{r quality-checks}
+missing_summary <- tibble(
+  column = names(exp_5k_clean),
+  missing_n = sapply(exp_5k_clean, function(x) sum(is.na(x))),
+  missing_pct = round(sapply(exp_5k_clean, function(x) mean(is.na(x)) * 100), 1)
+)
+
+missing_summary
+```
+
+```{r integrity-checks}
+cat("Duplicate linkedin_url values:", sum(duplicated(exp_5k_clean$linkedin_url)), "\n")
+cat("Missing linkedin_url values:", sum(is.na(exp_5k_clean$linkedin_url)), "\n")
+cat("Rows with non-missing Skills:", sum(!is.na(exp_5k_clean$Skills) & str_trim(exp_5k_clean$Skills) != ""), "\n")
+```
+
+## Part 3: Build the Modeling Text Field
+
+```{r build-text}
+text_cols <- c(
+  "headline",
+  "field_of_study",
+  "current_job_title",
+  "current_job_description",
+  "current_company_name",
+  "current_job_industry",
+  "previous_job_title",
+  "previous_job_description",
+  "previous_company_name",
+  "previous_job_Industry"
+)
+
+exp_model <- exp_5k_clean %>%
+  mutate(across(all_of(text_cols), ~coalesce(., ""))) %>%
+  mutate(
+    combined_text = paste(
+      headline,
+      field_of_study,
+      current_job_title,
+      current_job_description,
+      current_company_name,
+      current_job_industry,
+      previous_job_title,
+      previous_job_description,
+      previous_company_name,
+      previous_job_Industry,
+      sep = " "
+    ),
+    combined_text = str_squish(combined_text),
+    has_text = combined_text != ""
+  )
+
+exp_model %>%
+  summarise(
+    profiles_total = n(),
+    profiles_with_text = sum(has_text),
+    pct_with_text = percent(mean(has_text))
+  )
+```
+
+```{r filter-usable-rows}
+exp_model <- exp_model %>%
+  filter(has_text) %>%
+  mutate(
+    total_experience_count = coalesce(total_experience_count, 0),
+    text_char_len = nchar(combined_text),
+    text_word_len = str_count(combined_text, boundary("word")),
+    current_desc_present = if_else(str_trim(current_job_description) == "", 0, 1),
+    previous_desc_present = if_else(str_trim(previous_job_description) == "", 0, 1)
+  )
+
+exp_model %>%
+  select(linkedin_url, combined_text, total_experience_count, text_char_len, text_word_len) %>%
+  head(3)
+```
+
+## Part 4: Text Preprocessing
+
+```{r normalize-text}
+job_text <- exp_model %>%
+  transmute(
+    linkedin_url,
+    combined_text,
+    text_lower = str_to_lower(combined_text),
+    text_clean = text_lower %>%
+      str_replace_all("•|\\t|\\n|\\r", " ") %>%
+      str_replace_all("http[s]?://\\S+", " ") %>%
+      str_replace_all("[^a-zA-Z\\s]", " ") %>%
+      str_squish()
+  )
+
+job_text %>% select(linkedin_url, text_clean) %>% head(2)
+```
+
+```{r tokenize}
+stopwords_en <- get_stopwords(language = "en", source = "snowball")
+custom_stopwords <- tibble(word = c("eg", "etc", "na", "llc", "inc", "amp"))
+all_stopwords <- bind_rows(stopwords_en, custom_stopwords) %>% distinct(word)
+
+job_words <- job_text %>%
+  select(linkedin_url, text_clean) %>%
+  unnest_tokens(output = word, input = text_clean, token = "words")
+
+job_words_clean <- job_words %>%
+  anti_join(all_stopwords, by = "word") %>%
+  filter(str_length(word) > 2) %>%
+  filter(!str_detect(word, "^[0-9]+$")) %>%
+  mutate(word_stem = wordStem(word, language = "english"))
+
+job_words_clean %>% count(word_stem, sort = TRUE) %>% head(20)
+```
+
+```{r processed-text}
+processed_text <- job_words_clean %>%
+  count(linkedin_url, word_stem, sort = TRUE) %>%
+  rename(word = word_stem)
+
+cat("Processed token rows:", nrow(processed_text), "\n")
+cat("Vocabulary size:", n_distinct(processed_text$word), "\n")
+```
+
+## Part 5: Feature Engineering and Variable Creation
+
+```{r tfidf-build}
+# Reduce the vocabulary slightly for stability and memory management
+term_stats <- processed_text %>%
+  group_by(word) %>%
+  summarise(
+    doc_freq = n_distinct(linkedin_url),
+    total_count = sum(n),
+    .groups = "drop"
+  ) %>%
+  filter(doc_freq >= 5)
+
+processed_text_small <- processed_text %>%
+  inner_join(term_stats %>% select(word), by = "word")
+
+word_counts <- processed_text_small %>%
+  count(linkedin_url, word, wt = n, sort = TRUE)
+
+tfidf <- word_counts %>%
+  bind_tf_idf(term = word, document = linkedin_url, n = n)
+
+feature_matrix <- tfidf %>%
+  select(linkedin_url, word, tf_idf) %>%
+  pivot_wider(names_from = word, values_from = tf_idf, values_fill = 0)
+
+cat("Feature matrix dimensions:", nrow(feature_matrix), "rows x", ncol(feature_matrix), "columns\n")
+```
+
+```{r metadata-features}
+metadata_features <- exp_model %>%
+  select(
+    linkedin_url,
+    total_experience_count,
+    text_char_len,
+    text_word_len,
+    current_desc_present,
+    previous_desc_present
+  ) %>%
+  rename_with(~paste0("meta_", .x), -linkedin_url)
+
+metadata_features %>% head(3)
+```
+
+## Part 6: Labeling and Ground Truth
+
+```{r top-skills}
+# Use the self-reported Skills field as weakly supervised ground truth.
+skills_long <- exp_model %>%
+  select(linkedin_url, Skills) %>%
+  filter(!is.na(Skills), str_trim(Skills) != "") %>%
+  separate_rows(Skills, sep = ",") %>%
+  mutate(
+    skill = str_squish(str_to_lower(Skills))
+  ) %>%
+  filter(skill != "") %>%
+  distinct(linkedin_url, skill)
+
+top_skills <- skills_long %>%
+  count(skill, sort = TRUE) %>%
+  slice_head(n = 10)
+
+top_skills
+```
+
+```{r label-matrix}
+# Sanitize skill names so they become valid, readable column names.
+sanitize_skill_name <- function(x) {
+  x %>%
+    str_to_lower() %>%
+    str_replace_all("[^a-z0-9]+", "_") %>%
+    str_replace_all("_+", "_") %>%
+    str_replace_all("^_|_$", "")
+}
+
+label_matrix <- skills_long %>%
+  filter(skill %in% top_skills$skill) %>%
+  mutate(label_name = paste0("label_", sanitize_skill_name(skill)), value = 1L) %>%
+  select(linkedin_url, label_name, value) %>%
+  pivot_wider(names_from = label_name, values_from = value, values_fill = 0)
+
+label_matrix %>% head(3)
+```
+
+```{r assemble-model-dataset}
+model_dataset <- feature_matrix %>%
+  left_join(metadata_features, by = "linkedin_url") %>%
+  left_join(label_matrix, by = "linkedin_url") %>%
+  mutate(across(starts_with("label_"), ~coalesce(., 0L)))
+
+model_dataset %>%
+  summarise(
+    rows = n(),
+    columns = ncol(.),
+    label_columns = sum(str_detect(names(.), "^label_"))
+  )
+```
+
+```{r class-balance}
+label_balance <- model_dataset %>%
+  summarise(across(starts_with("label_"), ~mean(. == 1))) %>%
+  pivot_longer(cols = everything(), names_to = "label", values_to = "positive_rate") %>%
+  mutate(positive_rate = percent(positive_rate))
+
+label_balance
+```
+
+## Part 7: Data Partitioning
+
+```{r partitioning}
+# We split once at the profile level and carry both feature columns and label columns forward.
+set.seed(621)
+
+n_profiles <- nrow(model_dataset)
+train_size <- floor(0.70 * n_profiles)
+val_size   <- floor(0.15 * n_profiles)
+test_size  <- n_profiles - train_size - val_size
+
+shuffled_idx <- sample(n_profiles)
+train_idx <- shuffled_idx[1:train_size]
+val_idx   <- shuffled_idx[(train_size + 1):(train_size + val_size)]
+test_idx  <- shuffled_idx[(train_size + val_size + 1):n_profiles]
+
+train_data <- model_dataset[train_idx, ]
+validation_data <- model_dataset[val_idx, ]
+test_data <- model_dataset[test_idx, ]
+
+tibble(
+  split = c("train", "validation", "test"),
+  rows = c(nrow(train_data), nrow(validation_data), nrow(test_data)),
+  pct = scales::percent(c(nrow(train_data), nrow(validation_data), nrow(test_data)) / nrow(model_dataset))
+)
+```
+
+```{r save-outputs}
+write_csv(train_data, "train_data.csv")
+write_csv(validation_data, "validation_data.csv")
+write_csv(test_data, "test_data.csv")
+write_csv(top_skills, "top_skill_targets.csv")
+write_csv(label_balance, "label_balance_summary.csv")
+```
+
+## Part 8: Notes for CP8
+
+The train, validation, and test CSV files created above are the modeling inputs for CP8. Each exported file contains:
+
+- `linkedin_url` as the profile identifier
+- TF-IDF feature columns
+- metadata columns prefixed with `meta_`
+- label columns prefixed with `label_`
+
+In CP8, the team can select one label column at a time, such as `label_data_analysis` or `label_project_management`, and compare multiple candidate models on the same held-out split.

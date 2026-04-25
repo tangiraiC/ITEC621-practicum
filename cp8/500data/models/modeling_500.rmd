@@ -1,0 +1,176 @@
+---
+title: "Modeling - 500 Profile Dataset"
+author: "Team"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+library(tidyverse)
+library(glmnet)
+library(xgboost)
+library(Matrix)
+library(here)
+
+project_root <- normalizePath(file.path("..", "..", ".."))
+models_dir <- file.path(project_root, "models")
+results_dir <- file.path(project_root, "results")
+processed_dir <- file.path(project_root, "data", "processed")
+
+dir.create(models_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(results_dir, recursive = TRUE, showWarnings = FALSE)
+```
+
+# Introduction
+
+In this section, we will train candidate multi-label models using a one-vs-rest
+strategy for each target skill in the 500-profile dataset.
+
+## What This File Does
+
+- Loads TF-IDF feature matrices and binary skill target matrices.
+- Trains one GLMNET model per skill using a one-vs-rest setup.
+- Trains one XGBoost model per skill using the same target labels.
+- Creates validation predictions for model comparison.
+- Creates test predictions for final evaluation.
+- Saves trained models and prediction objects in `models/` and `results/`.
+
+# Load Encoded Inputs
+
+```{r load-encoded-inputs}
+X_train <- read_rds(file.path(processed_dir, "X_train.rds"))
+X_valid <- read_rds(file.path(processed_dir, "X_valid.rds"))
+X_test <- read_rds(file.path(processed_dir, "X_test.rds"))
+
+y_train <- read_rds(file.path(processed_dir, "y_train.rds"))
+y_valid <- read_rds(file.path(processed_dir, "y_valid.rds"))
+y_test <- read_rds(file.path(processed_dir, "y_test.rds"))
+
+top_skills <- read_rds(file.path(processed_dir, "top_skills.rds"))
+
+dim(X_train)
+dim(X_valid)
+dim(X_test)
+
+dim(y_train)
+dim(y_valid)
+dim(y_test)
+
+top_skills
+```
+
+# GLMNET Helper Functions
+
+```{r glmnet-helper-functions}
+train_glmnet_multilabel <- function(X_train, y_train, top_skills) {
+  models <- vector("list", length(top_skills))
+  names(models) <- top_skills
+
+  for (j in seq_along(top_skills)) {
+    models[[j]] <- cv.glmnet(
+      x = X_train,
+      y = y_train[, j],
+      family = "binomial",
+      alpha = 0,
+      type.measure = "class",
+      nfolds = 5
+    )
+  }
+
+  models
+}
+
+predict_glmnet_multilabel <- function(models, X, threshold = 0.50) {
+  pred_probs <- sapply(models, function(m) {
+    as.numeric(predict(m, newx = X, s = "lambda.min", type = "response"))
+  })
+
+  if (is.vector(pred_probs)) {
+    pred_probs <- matrix(pred_probs, ncol = 1)
+  }
+
+  colnames(pred_probs) <- names(models)
+
+  pred_class <- ifelse(pred_probs >= threshold, 1L, 0L)
+
+  list(prob = pred_probs, class = pred_class)
+}
+```
+
+# XGBoost Helper Functions
+
+```{r xgboost-helper-functions}
+train_xgb_multilabel <- function(X_train, y_train, top_skills) {
+  models <- vector("list", length(top_skills))
+  names(models) <- top_skills
+
+  for (j in seq_along(top_skills)) {
+    dtrain <- xgb.DMatrix(data = X_train, label = y_train[, j])
+
+    models[[j]] <- xgb.train(
+      params = list(
+        objective = "binary:logistic",
+        eval_metric = "logloss",
+        eta = 0.1,
+        max_depth = 6,
+        subsample = 0.8,
+        colsample_bytree = 0.8
+      ),
+      data = dtrain,
+      nrounds = 100,
+      verbose = 0
+    )
+  }
+
+  models
+}
+
+predict_xgb_multilabel <- function(models, X, threshold = 0.50) {
+  pred_probs <- sapply(models, function(m) {
+    as.numeric(predict(m, newdata = X))
+  })
+
+  if (is.vector(pred_probs)) {
+    pred_probs <- matrix(pred_probs, ncol = 1)
+  }
+
+  colnames(pred_probs) <- names(models)
+
+  pred_class <- ifelse(pred_probs >= threshold, 1L, 0L)
+
+  list(prob = pred_probs, class = pred_class)
+}
+```
+
+# Train Candidate Models
+
+```{r train-candidate-models}
+set.seed(621)
+
+glmnet_models <- train_glmnet_multilabel(X_train, y_train, top_skills)
+xgb_models <- train_xgb_multilabel(X_train, y_train, top_skills)
+
+saveRDS(glmnet_models, file.path(models_dir, "glmnet_multilabel_models.rds"))
+saveRDS(xgb_models, file.path(models_dir, "xgb_multilabel_models.rds"))
+```
+
+# Validation Predictions
+
+```{r validation-predictions}
+glmnet_valid_pred <- predict_glmnet_multilabel(glmnet_models, X_valid, threshold = 0.50)
+xgb_valid_pred <- predict_xgb_multilabel(xgb_models, X_valid, threshold = 0.50)
+
+saveRDS(glmnet_valid_pred, file.path(results_dir, "glmnet_valid_pred.rds"))
+saveRDS(xgb_valid_pred, file.path(results_dir, "xgb_valid_pred.rds"))
+```
+
+# Test Predictions
+
+```{r test-predictions}
+glmnet_test_pred <- predict_glmnet_multilabel(glmnet_models, X_test, threshold = 0.50)
+xgb_test_pred <- predict_xgb_multilabel(xgb_models, X_test, threshold = 0.50)
+
+saveRDS(glmnet_test_pred, file.path(results_dir, "glmnet_test_pred.rds"))
+saveRDS(xgb_test_pred, file.path(results_dir, "xgb_test_pred.rds"))
+```

@@ -1,0 +1,215 @@
+---
+title: "5k Model: Baseline Frequency Prior"
+author: "Team"
+output: html_document
+---
+
+This notebook trains and evaluates the baseline frequency-prior model for the
+5k LinkedIn skills extraction dataset. The model predicts each skill using its
+training-set prevalence.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+library(dplyr)
+library(tibble)
+```
+
+# Load Encoded 5k Inputs
+
+```{r load-data}
+project_root <- normalizePath(file.path("..", "..", ".."))
+split_input_path <- file.path(project_root, "data", "processed", "train_validation_test_split.rds")
+
+split_objects <- readRDS(split_input_path)
+
+X_train <- split_objects$X_train
+X_validation <- split_objects$X_validation
+X_test <- split_objects$X_test
+
+y_train <- as.matrix(split_objects$y_train)
+y_validation <- as.matrix(split_objects$y_validation)
+y_test <- as.matrix(split_objects$y_test)
+
+retained_skills <- split_objects$retained_skills
+
+cat("X_train dimensions:", dim(X_train), "\n")
+cat("X_validation dimensions:", dim(X_validation), "\n")
+cat("X_test dimensions:", dim(X_test), "\n")
+cat("y_train dimensions:", dim(y_train), "\n")
+cat("y_validation dimensions:", dim(y_validation), "\n")
+cat("y_test dimensions:", dim(y_test), "\n")
+```
+
+# Modeling Scope
+
+```{r modeling-scope}
+max_model_labels <- 25
+
+label_prevalence <- colMeans(y_train)
+label_order <- order(label_prevalence, decreasing = TRUE)
+selected_label_indices <- label_order[seq_len(min(max_model_labels, length(label_order)))]
+
+y_train <- y_train[, selected_label_indices, drop = FALSE]
+y_validation <- y_validation[, selected_label_indices, drop = FALSE]
+y_test <- y_test[, selected_label_indices, drop = FALSE]
+retained_skills <- colnames(y_train)
+
+cat("Modeled labels:", ncol(y_train), "\n")
+print(retained_skills)
+```
+
+# Helper Functions
+
+```{r helper-functions}
+safe_divide <- function(num, den) {
+  ifelse(den == 0, 0, num / den)
+}
+
+evaluate_multilabel <- function(y_true, y_pred_binary) {
+  y_true <- as.matrix(y_true)
+  y_pred_binary <- as.matrix(y_pred_binary)
+
+  tp_micro <- sum((y_true == 1) & (y_pred_binary == 1))
+  fp_micro <- sum((y_true == 0) & (y_pred_binary == 1))
+  fn_micro <- sum((y_true == 1) & (y_pred_binary == 0))
+
+  precision_micro <- safe_divide(tp_micro, tp_micro + fp_micro)
+  recall_micro <- safe_divide(tp_micro, tp_micro + fn_micro)
+  f1_micro <- safe_divide(2 * precision_micro * recall_micro, precision_micro + recall_micro)
+
+  precision_by_label <- numeric(ncol(y_true))
+  recall_by_label <- numeric(ncol(y_true))
+  f1_by_label <- numeric(ncol(y_true))
+
+  for (j in seq_len(ncol(y_true))) {
+    tp <- sum((y_true[, j] == 1) & (y_pred_binary[, j] == 1))
+    fp <- sum((y_true[, j] == 0) & (y_pred_binary[, j] == 1))
+    fn <- sum((y_true[, j] == 1) & (y_pred_binary[, j] == 0))
+
+    p <- safe_divide(tp, tp + fp)
+    r <- safe_divide(tp, tp + fn)
+    f <- safe_divide(2 * p * r, p + r)
+
+    precision_by_label[j] <- p
+    recall_by_label[j] <- r
+    f1_by_label[j] <- f
+  }
+
+  tibble(
+    precision_micro = precision_micro,
+    recall_micro = recall_micro,
+    f1_micro = f1_micro,
+    precision_macro = mean(precision_by_label, na.rm = TRUE),
+    recall_macro = mean(recall_by_label, na.rm = TRUE),
+    f1_macro = mean(f1_by_label, na.rm = TRUE)
+  )
+}
+
+predict_binary_from_probs <- function(prob_matrix, threshold = 0.50) {
+  prob_matrix <- as.matrix(prob_matrix)
+
+  if (length(threshold) == 1) {
+    return(ifelse(prob_matrix >= threshold, 1L, 0L))
+  }
+
+  threshold_matrix <- matrix(
+    rep(threshold, each = nrow(prob_matrix)),
+    nrow = nrow(prob_matrix),
+    byrow = FALSE
+  )
+
+  ifelse(prob_matrix >= threshold_matrix, 1L, 0L)
+}
+
+tune_label_thresholds <- function(y_true, prob_matrix, grid = seq(0.05, 0.95, by = 0.05)) {
+  y_true <- as.matrix(y_true)
+  prob_matrix <- as.matrix(prob_matrix)
+  thresholds <- rep(0.50, ncol(y_true))
+  names(thresholds) <- colnames(y_true)
+
+  for (j in seq_len(ncol(y_true))) {
+    if (sum(y_true[, j] == 1) == 0) {
+      next
+    }
+
+    scores <- sapply(grid, function(threshold) {
+      pred <- ifelse(prob_matrix[, j] >= threshold, 1L, 0L)
+      tp <- sum((y_true[, j] == 1) & (pred == 1))
+      fp <- sum((y_true[, j] == 0) & (pred == 1))
+      fn <- sum((y_true[, j] == 1) & (pred == 0))
+      precision <- safe_divide(tp, tp + fp)
+      recall <- safe_divide(tp, tp + fn)
+      safe_divide(2 * precision * recall, precision + recall)
+    })
+
+    thresholds[j] <- grid[which.max(scores)]
+  }
+
+  thresholds
+}
+```
+
+# Train Baseline
+
+```{r train-baseline}
+skill_prevalence <- colMeans(y_train)
+
+baseline_probs_validation <- matrix(
+  rep(skill_prevalence, each = nrow(y_validation)),
+  nrow = nrow(y_validation),
+  byrow = FALSE
+)
+
+baseline_probs_test <- matrix(
+  rep(skill_prevalence, each = nrow(y_test)),
+  nrow = nrow(y_test),
+  byrow = FALSE
+)
+
+colnames(baseline_probs_validation) <- colnames(y_train)
+colnames(baseline_probs_test) <- colnames(y_train)
+
+baseline_thresholds <- tune_label_thresholds(y_validation, baseline_probs_validation)
+
+baseline_pred_validation <- predict_binary_from_probs(
+  baseline_probs_validation,
+  threshold = baseline_thresholds
+)
+
+baseline_pred_test <- predict_binary_from_probs(
+  baseline_probs_test,
+  threshold = baseline_thresholds
+)
+
+baseline_validation_metrics <- evaluate_multilabel(y_validation, baseline_pred_validation)
+baseline_test_metrics <- evaluate_multilabel(y_test, baseline_pred_test)
+
+baseline_validation_metrics
+baseline_test_metrics
+```
+
+# Save Outputs
+
+```{r save-outputs}
+model_output_dir <- file.path(project_root, "data", "processed", "5k_model_outputs", "baseline_frequency_prior")
+dir.create(model_output_dir, recursive = TRUE, showWarnings = FALSE)
+
+baseline_results <- list(
+  model = "Baseline Frequency Prior",
+  validation_metrics = baseline_validation_metrics,
+  test_metrics = baseline_test_metrics,
+  thresholds = baseline_thresholds,
+  validation_probabilities = baseline_probs_validation,
+  test_probabilities = baseline_probs_test,
+  validation_predictions = baseline_pred_validation,
+  test_predictions = baseline_pred_test,
+  retained_skills = retained_skills
+)
+
+saveRDS(baseline_results, file.path(model_output_dir, "baseline_frequency_prior_5k_results.rds"))
+write.csv(baseline_validation_metrics, file.path(model_output_dir, "validation_metrics.csv"), row.names = FALSE)
+write.csv(baseline_test_metrics, file.path(model_output_dir, "test_metrics.csv"), row.names = FALSE)
+
+cat("Baseline outputs saved to:", model_output_dir, "\n")
+```

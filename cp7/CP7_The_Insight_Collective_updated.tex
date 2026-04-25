@@ -1,0 +1,719 @@
+% Options for packages loaded elsewhere
+\PassOptionsToPackage{unicode}{hyperref}
+\PassOptionsToPackage{hyphens}{url}
+\documentclass[
+]{article}
+\usepackage{xcolor}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\setcounter{secnumdepth}{-\maxdimen} % remove section numbering
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{textcomp} % provide euro and other symbols
+\else % if luatex or xetex
+  \usepackage{unicode-math} % this also loads fontspec
+  \defaultfontfeatures{Scale=MatchLowercase}
+  \defaultfontfeatures[\rmfamily]{Ligatures=TeX,Scale=1}
+\fi
+\usepackage{lmodern}
+\ifPDFTeX\else
+  % xetex/luatex font selection
+\fi
+% Use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\IfFileExists{microtype.sty}{% use microtype if available
+  \usepackage[]{microtype}
+  \UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\makeatletter
+\@ifundefined{KOMAClassName}{% if non-KOMA class
+  \IfFileExists{parskip.sty}{%
+    \usepackage{parskip}
+  }{% else
+    \setlength{\parindent}{0pt}
+    \setlength{\parskip}{6pt plus 2pt minus 1pt}}
+}{% if KOMA class
+  \KOMAoptions{parskip=half}}
+\makeatother
+\usepackage{color}
+\usepackage{fancyvrb}
+\newcommand{\VerbBar}{|}
+\newcommand{\VERB}{\Verb[commandchars=\\\{\}]}
+\DefineVerbatimEnvironment{Highlighting}{Verbatim}{commandchars=\\\{\}}
+% Add ',fontsize=\small' for more characters per line
+\usepackage{framed}
+\definecolor{shadecolor}{RGB}{248,248,248}
+\newenvironment{Shaded}{\begin{snugshade}}{\end{snugshade}}
+\newcommand{\AlertTok}[1]{\textcolor[rgb]{0.94,0.16,0.16}{#1}}
+\newcommand{\AnnotationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\AttributeTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{#1}}
+\newcommand{\BaseNTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\BuiltInTok}[1]{#1}
+\newcommand{\CharTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\CommentTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textit{#1}}}
+\newcommand{\CommentVarTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\ConstantTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{#1}}
+\newcommand{\ControlFlowTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{\textbf{#1}}}
+\newcommand{\DataTypeTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{#1}}
+\newcommand{\DecValTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\DocumentationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\ErrorTok}[1]{\textcolor[rgb]{0.64,0.00,0.00}{\textbf{#1}}}
+\newcommand{\ExtensionTok}[1]{#1}
+\newcommand{\FloatTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\FunctionTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{\textbf{#1}}}
+\newcommand{\ImportTok}[1]{#1}
+\newcommand{\InformationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\KeywordTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{\textbf{#1}}}
+\newcommand{\NormalTok}[1]{#1}
+\newcommand{\OperatorTok}[1]{\textcolor[rgb]{0.81,0.36,0.00}{\textbf{#1}}}
+\newcommand{\OtherTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{#1}}
+\newcommand{\PreprocessorTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textit{#1}}}
+\newcommand{\RegionMarkerTok}[1]{#1}
+\newcommand{\SpecialCharTok}[1]{\textcolor[rgb]{0.81,0.36,0.00}{\textbf{#1}}}
+\newcommand{\SpecialStringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\StringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\VariableTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\VerbatimStringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\WarningTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\usepackage{graphicx}
+\makeatletter
+\newsavebox\pandoc@box
+\newcommand*\pandocbounded[1]{% scales image to fit in text height/width
+  \sbox\pandoc@box{#1}%
+  \Gscale@div\@tempa{\textheight}{\dimexpr\ht\pandoc@box+\dp\pandoc@box\relax}%
+  \Gscale@div\@tempb{\linewidth}{\wd\pandoc@box}%
+  \ifdim\@tempb\p@<\@tempa\p@\let\@tempa\@tempb\fi% select the smaller of both
+  \ifdim\@tempa\p@<\p@\scalebox{\@tempa}{\usebox\pandoc@box}%
+  \else\usebox{\pandoc@box}%
+  \fi%
+}
+% Set default figure placement to htbp
+\def\fps@figure{htbp}
+\makeatother
+\setlength{\emergencystretch}{3em} % prevent overfull lines
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\usepackage{bookmark}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
+\urlstyle{same}
+\hypersetup{
+  pdftitle={CP7\_The Insight Collective},
+  pdfauthor={Mekdelawit Dejene, Hanna Weinstein, Ayman Ibenbrahim, Lincoln Chanakira},
+  hidelinks,
+  pdfcreator={LaTeX via pandoc}}
+
+\title{CP7\_The Insight Collective}
+\author{Mekdelawit Dejene, Hanna Weinstein, Ayman Ibenbrahim, Lincoln
+Chanakira}
+\date{2026-04-16}
+
+\begin{document}
+\maketitle
+
+\subsection{Executive Summary}\label{executive-summary}
+
+This document prepares the Kogod Career Development LinkedIn profile
+data for Question B: Skills Extraction. The workflow loads the cleaned
+5k experience dataset, checks data quality, combines relevant profile
+text fields, preprocesses the text, creates TF-IDF features, generates
+weakly supervised label columns from the self-reported \texttt{Skills}
+field, and exports train, validation, and test files for CP8 modeling.
+
+\subsection{Libraries}\label{libraries}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\FunctionTok{library}\NormalTok{(readr)}
+\FunctionTok{library}\NormalTok{(dplyr)}
+\FunctionTok{library}\NormalTok{(tidyr)}
+\FunctionTok{library}\NormalTok{(stringr)}
+\FunctionTok{library}\NormalTok{(tidytext)}
+\FunctionTok{library}\NormalTok{(SnowballC)}
+\FunctionTok{library}\NormalTok{(stopwords)}
+\FunctionTok{library}\NormalTok{(ggplot2)}
+\FunctionTok{library}\NormalTok{(forcats)}
+\FunctionTok{library}\NormalTok{(scales)}
+\FunctionTok{library}\NormalTok{(Matrix)}
+\end{Highlighting}
+\end{Shaded}
+
+\subsection{Part 1: Load and Inspect the
+Data}\label{part-1-load-and-inspect-the-data}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# Read from the project data folder so the document renders from the cp7 directory}
+\NormalTok{exp\_5k\_clean }\OtherTok{\textless{}{-}} \FunctionTok{read\_csv}\NormalTok{(}\StringTok{"../data/processed/cleaned\_5k\_experiences.csv"}\NormalTok{, }\AttributeTok{show\_col\_types =} \ConstantTok{FALSE}\NormalTok{)}
+
+\FunctionTok{dim}\NormalTok{(exp\_5k\_clean)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## [1] 5865   13
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\FunctionTok{names}\NormalTok{(exp\_5k\_clean)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+##  [1] "linkedin_url"             "headline"                
+##  [3] "field_of_study"           "current_job_title"       
+##  [5] "current_job_description"  "current_company_name"    
+##  [7] "current_job_industry"     "previous_job_title"      
+##  [9] "previous_job_description" "previous_company_name"   
+## [11] "previous_job_Industry"    "Skills"                  
+## [13] "total_experience_count"
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\FunctionTok{glimpse}\NormalTok{(exp\_5k\_clean)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## Rows: 5,865
+## Columns: 13
+## $ linkedin_url             <chr> "https://www.linkedin.com/in/dalejankowski/",~
+## $ headline                 <chr> "Life Transitions and Estate Sale Services", ~
+## $ field_of_study           <chr> "BA, Psychology", "Master of Science (SM), Sy~
+## $ current_job_title        <chr> "Legacy Life Transitions Manager", "Senior Ba~
+## $ current_job_description  <chr> NA, NA, NA, "•\tEvaluated sites, both remote ~
+## $ current_company_name     <chr> "Legacy Life Transitions", "RTK Tickets", "Fe~
+## $ current_job_industry     <chr> "Wholesale Building Materials", "Retail", "Go~
+## $ previous_job_title       <chr> "Realtor", "Senior Product Engineer", NA, "Le~
+## $ previous_job_description <chr> "•       Seniors Real Estate Specialist desig~
+## $ previous_company_name    <chr> "Crye Leike Realtors", "Pawling Engineered Pr~
+## $ previous_job_Industry    <chr> NA, NA, NA, NA, "Financial Services", "Accoun~
+## $ Skills                   <chr> "Communication, Project Management, Teamwork,~
+## $ total_experience_count   <dbl> 8, 4, 3, 4, 6, 6, 15, 5, 4, 2, 4, 6, 4, 13, 5~
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{file\_summary }\OtherTok{\textless{}{-}} \FunctionTok{tibble}\NormalTok{(}
+  \AttributeTok{rows =} \FunctionTok{nrow}\NormalTok{(exp\_5k\_clean),}
+  \AttributeTok{columns =} \FunctionTok{ncol}\NormalTok{(exp\_5k\_clean),}
+  \AttributeTok{unique\_profiles =} \FunctionTok{n\_distinct}\NormalTok{(exp\_5k\_clean}\SpecialCharTok{$}\NormalTok{linkedin\_url)}
+\NormalTok{)}
+
+\NormalTok{file\_summary}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## # A tibble: 1 x 3
+##    rows columns unique_profiles
+##   <int>   <int>           <int>
+## 1  5865      13            5865
+\end{verbatim}
+
+\subsection{Part 2: Data Quality and
+Validation}\label{part-2-data-quality-and-validation}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{missing\_summary }\OtherTok{\textless{}{-}} \FunctionTok{tibble}\NormalTok{(}
+  \AttributeTok{column =} \FunctionTok{names}\NormalTok{(exp\_5k\_clean),}
+  \AttributeTok{missing\_n =} \FunctionTok{sapply}\NormalTok{(exp\_5k\_clean, }\ControlFlowTok{function}\NormalTok{(x) }\FunctionTok{sum}\NormalTok{(}\FunctionTok{is.na}\NormalTok{(x))),}
+  \AttributeTok{missing\_pct =} \FunctionTok{round}\NormalTok{(}\FunctionTok{sapply}\NormalTok{(exp\_5k\_clean, }\ControlFlowTok{function}\NormalTok{(x) }\FunctionTok{mean}\NormalTok{(}\FunctionTok{is.na}\NormalTok{(x)) }\SpecialCharTok{*} \DecValTok{100}\NormalTok{), }\DecValTok{1}\NormalTok{)}
+\NormalTok{)}
+
+\NormalTok{missing\_summary}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## # A tibble: 13 x 3
+##    column                   missing_n missing_pct
+##    <chr>                        <int>       <dbl>
+##  1 linkedin_url                     0         0  
+##  2 headline                       121         2.1
+##  3 field_of_study                 849        14.5
+##  4 current_job_title              461         7.9
+##  5 current_job_description       3815        65  
+##  6 current_company_name           505         8.6
+##  7 current_job_industry          1699        29  
+##  8 previous_job_title            1621        27.6
+##  9 previous_job_description      3505        59.8
+## 10 previous_company_name         1630        27.8
+## 11 previous_job_Industry         2819        48.1
+## 12 Skills                        1028        17.5
+## 13 total_experience_count         119         2
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\FunctionTok{cat}\NormalTok{(}\StringTok{"Duplicate linkedin\_url values:"}\NormalTok{, }\FunctionTok{sum}\NormalTok{(}\FunctionTok{duplicated}\NormalTok{(exp\_5k\_clean}\SpecialCharTok{$}\NormalTok{linkedin\_url)), }\StringTok{"}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## Duplicate linkedin_url values: 0
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\FunctionTok{cat}\NormalTok{(}\StringTok{"Missing linkedin\_url values:"}\NormalTok{, }\FunctionTok{sum}\NormalTok{(}\FunctionTok{is.na}\NormalTok{(exp\_5k\_clean}\SpecialCharTok{$}\NormalTok{linkedin\_url)), }\StringTok{"}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## Missing linkedin_url values: 0
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\FunctionTok{cat}\NormalTok{(}\StringTok{"Rows with non{-}missing Skills:"}\NormalTok{, }\FunctionTok{sum}\NormalTok{(}\SpecialCharTok{!}\FunctionTok{is.na}\NormalTok{(exp\_5k\_clean}\SpecialCharTok{$}\NormalTok{Skills) }\SpecialCharTok{\&} \FunctionTok{str\_trim}\NormalTok{(exp\_5k\_clean}\SpecialCharTok{$}\NormalTok{Skills) }\SpecialCharTok{!=} \StringTok{""}\NormalTok{), }\StringTok{"}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## Rows with non-missing Skills: 4837
+\end{verbatim}
+
+\subsection{Part 3: Build the Modeling Text
+Field}\label{part-3-build-the-modeling-text-field}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{text\_cols }\OtherTok{\textless{}{-}} \FunctionTok{c}\NormalTok{(}
+  \StringTok{"headline"}\NormalTok{,}
+  \StringTok{"field\_of\_study"}\NormalTok{,}
+  \StringTok{"current\_job\_title"}\NormalTok{,}
+  \StringTok{"current\_job\_description"}\NormalTok{,}
+  \StringTok{"current\_company\_name"}\NormalTok{,}
+  \StringTok{"current\_job\_industry"}\NormalTok{,}
+  \StringTok{"previous\_job\_title"}\NormalTok{,}
+  \StringTok{"previous\_job\_description"}\NormalTok{,}
+  \StringTok{"previous\_company\_name"}\NormalTok{,}
+  \StringTok{"previous\_job\_Industry"}
+\NormalTok{)}
+
+\NormalTok{exp\_model }\OtherTok{\textless{}{-}}\NormalTok{ exp\_5k\_clean }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{mutate}\NormalTok{(}\FunctionTok{across}\NormalTok{(}\FunctionTok{all\_of}\NormalTok{(text\_cols), }\SpecialCharTok{\textasciitilde{}}\FunctionTok{coalesce}\NormalTok{(., }\StringTok{""}\NormalTok{))) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{mutate}\NormalTok{(}
+    \AttributeTok{combined\_text =} \FunctionTok{paste}\NormalTok{(}
+\NormalTok{      headline,}
+\NormalTok{      field\_of\_study,}
+\NormalTok{      current\_job\_title,}
+\NormalTok{      current\_job\_description,}
+\NormalTok{      current\_company\_name,}
+\NormalTok{      current\_job\_industry,}
+\NormalTok{      previous\_job\_title,}
+\NormalTok{      previous\_job\_description,}
+\NormalTok{      previous\_company\_name,}
+\NormalTok{      previous\_job\_Industry,}
+      \AttributeTok{sep =} \StringTok{" "}
+\NormalTok{    ),}
+    \AttributeTok{combined\_text =} \FunctionTok{str\_squish}\NormalTok{(combined\_text),}
+    \AttributeTok{has\_text =}\NormalTok{ combined\_text }\SpecialCharTok{!=} \StringTok{""}
+\NormalTok{  )}
+
+\NormalTok{exp\_model }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{summarise}\NormalTok{(}
+    \AttributeTok{profiles\_total =} \FunctionTok{n}\NormalTok{(),}
+    \AttributeTok{profiles\_with\_text =} \FunctionTok{sum}\NormalTok{(has\_text),}
+    \AttributeTok{pct\_with\_text =} \FunctionTok{percent}\NormalTok{(}\FunctionTok{mean}\NormalTok{(has\_text))}
+\NormalTok{  )}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## # A tibble: 1 x 3
+##   profiles_total profiles_with_text pct_with_text
+##            <int>              <int> <chr>        
+## 1           5865               5746 98%
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{exp\_model }\OtherTok{\textless{}{-}}\NormalTok{ exp\_model }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{filter}\NormalTok{(has\_text) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{mutate}\NormalTok{(}
+    \AttributeTok{total\_experience\_count =} \FunctionTok{coalesce}\NormalTok{(total\_experience\_count, }\DecValTok{0}\NormalTok{),}
+    \AttributeTok{text\_char\_len =} \FunctionTok{nchar}\NormalTok{(combined\_text),}
+    \AttributeTok{text\_word\_len =} \FunctionTok{str\_count}\NormalTok{(combined\_text, }\FunctionTok{boundary}\NormalTok{(}\StringTok{"word"}\NormalTok{)),}
+    \AttributeTok{current\_desc\_present =} \FunctionTok{if\_else}\NormalTok{(}\FunctionTok{str\_trim}\NormalTok{(current\_job\_description) }\SpecialCharTok{==} \StringTok{""}\NormalTok{, }\DecValTok{0}\NormalTok{, }\DecValTok{1}\NormalTok{),}
+    \AttributeTok{previous\_desc\_present =} \FunctionTok{if\_else}\NormalTok{(}\FunctionTok{str\_trim}\NormalTok{(previous\_job\_description) }\SpecialCharTok{==} \StringTok{""}\NormalTok{, }\DecValTok{0}\NormalTok{, }\DecValTok{1}\NormalTok{)}
+\NormalTok{  )}
+
+\NormalTok{exp\_model }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{select}\NormalTok{(linkedin\_url, combined\_text, total\_experience\_count, text\_char\_len, text\_word\_len) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{head}\NormalTok{(}\DecValTok{3}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## # A tibble: 3 x 5
+##   linkedin_url  combined_text total_experience_count text_char_len text_word_len
+##   <chr>         <chr>                          <dbl>         <int>         <int>
+## 1 https://www.~ Life Transit~                      8           914           130
+## 2 https://www.~ Engineer Mas~                      4           739            95
+## 3 https://www.~ Program Mana~                      3           189            24
+\end{verbatim}
+
+\subsection{Part 4: Text Preprocessing}\label{part-4-text-preprocessing}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{job\_text }\OtherTok{\textless{}{-}}\NormalTok{ exp\_model }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{transmute}\NormalTok{(}
+\NormalTok{    linkedin\_url,}
+\NormalTok{    combined\_text,}
+    \AttributeTok{text\_lower =} \FunctionTok{str\_to\_lower}\NormalTok{(combined\_text),}
+    \AttributeTok{text\_clean =}\NormalTok{ text\_lower }\SpecialCharTok{\%\textgreater{}\%}
+      \FunctionTok{str\_replace\_all}\NormalTok{(}\StringTok{"•|}\SpecialCharTok{\textbackslash{}\textbackslash{}}\StringTok{t|}\SpecialCharTok{\textbackslash{}\textbackslash{}}\StringTok{n|}\SpecialCharTok{\textbackslash{}\textbackslash{}}\StringTok{r"}\NormalTok{, }\StringTok{" "}\NormalTok{) }\SpecialCharTok{\%\textgreater{}\%}
+      \FunctionTok{str\_replace\_all}\NormalTok{(}\StringTok{"http[s]?://}\SpecialCharTok{\textbackslash{}\textbackslash{}}\StringTok{S+"}\NormalTok{, }\StringTok{" "}\NormalTok{) }\SpecialCharTok{\%\textgreater{}\%}
+      \FunctionTok{str\_replace\_all}\NormalTok{(}\StringTok{"[\^{}a{-}zA{-}Z}\SpecialCharTok{\textbackslash{}\textbackslash{}}\StringTok{s]"}\NormalTok{, }\StringTok{" "}\NormalTok{) }\SpecialCharTok{\%\textgreater{}\%}
+      \FunctionTok{str\_squish}\NormalTok{()}
+\NormalTok{  )}
+
+\NormalTok{job\_text }\SpecialCharTok{\%\textgreater{}\%} \FunctionTok{select}\NormalTok{(linkedin\_url, text\_clean) }\SpecialCharTok{\%\textgreater{}\%} \FunctionTok{head}\NormalTok{(}\DecValTok{2}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## # A tibble: 2 x 2
+##   linkedin_url                               text_clean                         
+##   <chr>                                      <chr>                              
+## 1 https://www.linkedin.com/in/dalejankowski/ life transitions and estate sale s~
+## 2 https://www.linkedin.com/in/dalewilliamb/  engineer master of science sm syst~
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{stopwords\_en }\OtherTok{\textless{}{-}} \FunctionTok{get\_stopwords}\NormalTok{(}\AttributeTok{language =} \StringTok{"en"}\NormalTok{, }\AttributeTok{source =} \StringTok{"snowball"}\NormalTok{)}
+\NormalTok{custom\_stopwords }\OtherTok{\textless{}{-}} \FunctionTok{tibble}\NormalTok{(}\AttributeTok{word =} \FunctionTok{c}\NormalTok{(}\StringTok{"eg"}\NormalTok{, }\StringTok{"etc"}\NormalTok{, }\StringTok{"na"}\NormalTok{, }\StringTok{"llc"}\NormalTok{, }\StringTok{"inc"}\NormalTok{, }\StringTok{"amp"}\NormalTok{))}
+\NormalTok{all\_stopwords }\OtherTok{\textless{}{-}} \FunctionTok{bind\_rows}\NormalTok{(stopwords\_en, custom\_stopwords) }\SpecialCharTok{\%\textgreater{}\%} \FunctionTok{distinct}\NormalTok{(word)}
+
+\NormalTok{job\_words }\OtherTok{\textless{}{-}}\NormalTok{ job\_text }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{select}\NormalTok{(linkedin\_url, text\_clean) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{unnest\_tokens}\NormalTok{(}\AttributeTok{output =}\NormalTok{ word, }\AttributeTok{input =}\NormalTok{ text\_clean, }\AttributeTok{token =} \StringTok{"words"}\NormalTok{)}
+
+\NormalTok{job\_words\_clean }\OtherTok{\textless{}{-}}\NormalTok{ job\_words }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{anti\_join}\NormalTok{(all\_stopwords, }\AttributeTok{by =} \StringTok{"word"}\NormalTok{) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{filter}\NormalTok{(}\FunctionTok{str\_length}\NormalTok{(word) }\SpecialCharTok{\textgreater{}} \DecValTok{2}\NormalTok{) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{filter}\NormalTok{(}\SpecialCharTok{!}\FunctionTok{str\_detect}\NormalTok{(word, }\StringTok{"\^{}[0{-}9]+$"}\NormalTok{)) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{mutate}\NormalTok{(}\AttributeTok{word\_stem =} \FunctionTok{wordStem}\NormalTok{(word, }\AttributeTok{language =} \StringTok{"english"}\NormalTok{))}
+
+\NormalTok{job\_words\_clean }\SpecialCharTok{\%\textgreater{}\%} \FunctionTok{count}\NormalTok{(word\_stem, }\AttributeTok{sort =} \ConstantTok{TRUE}\NormalTok{) }\SpecialCharTok{\%\textgreater{}\%} \FunctionTok{head}\NormalTok{(}\DecValTok{20}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## # A tibble: 20 x 2
+##    word_stem     n
+##    <chr>     <int>
+##  1 manag      7810
+##  2 busi       6258
+##  3 servic     3890
+##  4 market     3184
+##  5 develop    3027
+##  6 administr  2524
+##  7 financi    2439
+##  8 oper       2274
+##  9 account    2002
+## 10 financ     1945
+## 11 director   1940
+## 12 master     1853
+## 13 consult    1802
+## 14 team       1728
+## 15 product    1713
+## 16 univers    1683
+## 17 strategi   1624
+## 18 mba        1618
+## 19 program    1601
+## 20 execut     1576
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{processed\_text }\OtherTok{\textless{}{-}}\NormalTok{ job\_words\_clean }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{count}\NormalTok{(linkedin\_url, word\_stem, }\AttributeTok{sort =} \ConstantTok{TRUE}\NormalTok{) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{rename}\NormalTok{(}\AttributeTok{word =}\NormalTok{ word\_stem)}
+
+\FunctionTok{cat}\NormalTok{(}\StringTok{"Processed token rows:"}\NormalTok{, }\FunctionTok{nrow}\NormalTok{(processed\_text), }\StringTok{"}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## Processed token rows: 234303
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\FunctionTok{cat}\NormalTok{(}\StringTok{"Vocabulary size:"}\NormalTok{, }\FunctionTok{n\_distinct}\NormalTok{(processed\_text}\SpecialCharTok{$}\NormalTok{word), }\StringTok{"}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## Vocabulary size: 15060
+\end{verbatim}
+
+\subsection{Part 5: Feature Engineering and Variable
+Creation}\label{part-5-feature-engineering-and-variable-creation}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# Reduce the vocabulary slightly for stability and memory management}
+\NormalTok{term\_stats }\OtherTok{\textless{}{-}}\NormalTok{ processed\_text }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{group\_by}\NormalTok{(word) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{summarise}\NormalTok{(}
+    \AttributeTok{doc\_freq =} \FunctionTok{n\_distinct}\NormalTok{(linkedin\_url),}
+    \AttributeTok{total\_count =} \FunctionTok{sum}\NormalTok{(n),}
+    \AttributeTok{.groups =} \StringTok{"drop"}
+\NormalTok{  ) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{filter}\NormalTok{(doc\_freq }\SpecialCharTok{\textgreater{}=} \DecValTok{5}\NormalTok{)}
+
+\NormalTok{processed\_text\_small }\OtherTok{\textless{}{-}}\NormalTok{ processed\_text }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{inner\_join}\NormalTok{(term\_stats }\SpecialCharTok{\%\textgreater{}\%} \FunctionTok{select}\NormalTok{(word), }\AttributeTok{by =} \StringTok{"word"}\NormalTok{)}
+
+\NormalTok{word\_counts }\OtherTok{\textless{}{-}}\NormalTok{ processed\_text\_small }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{count}\NormalTok{(linkedin\_url, word, }\AttributeTok{wt =}\NormalTok{ n, }\AttributeTok{sort =} \ConstantTok{TRUE}\NormalTok{)}
+
+\NormalTok{tfidf }\OtherTok{\textless{}{-}}\NormalTok{ word\_counts }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{bind\_tf\_idf}\NormalTok{(}\AttributeTok{term =}\NormalTok{ word, }\AttributeTok{document =}\NormalTok{ linkedin\_url, }\AttributeTok{n =}\NormalTok{ n)}
+
+\NormalTok{feature\_matrix }\OtherTok{\textless{}{-}}\NormalTok{ tfidf }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{select}\NormalTok{(linkedin\_url, word, tf\_idf) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{pivot\_wider}\NormalTok{(}\AttributeTok{names\_from =}\NormalTok{ word, }\AttributeTok{values\_from =}\NormalTok{ tf\_idf, }\AttributeTok{values\_fill =} \DecValTok{0}\NormalTok{)}
+
+\FunctionTok{cat}\NormalTok{(}\StringTok{"Feature matrix dimensions:"}\NormalTok{, }\FunctionTok{nrow}\NormalTok{(feature\_matrix), }\StringTok{"rows x"}\NormalTok{, }\FunctionTok{ncol}\NormalTok{(feature\_matrix), }\StringTok{"columns}\SpecialCharTok{\textbackslash{}n}\StringTok{"}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## Feature matrix dimensions: 5723 rows x 3527 columns
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{metadata\_features }\OtherTok{\textless{}{-}}\NormalTok{ exp\_model }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{select}\NormalTok{(}
+\NormalTok{    linkedin\_url,}
+\NormalTok{    total\_experience\_count,}
+\NormalTok{    text\_char\_len,}
+\NormalTok{    text\_word\_len,}
+\NormalTok{    current\_desc\_present,}
+\NormalTok{    previous\_desc\_present}
+\NormalTok{  ) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{rename\_with}\NormalTok{(}\SpecialCharTok{\textasciitilde{}}\FunctionTok{paste0}\NormalTok{(}\StringTok{"meta\_"}\NormalTok{, .x), }\SpecialCharTok{{-}}\NormalTok{linkedin\_url)}
+
+\NormalTok{metadata\_features }\SpecialCharTok{\%\textgreater{}\%} \FunctionTok{head}\NormalTok{(}\DecValTok{3}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## # A tibble: 3 x 6
+##   linkedin_url      meta_total_experienc~1 meta_text_char_len meta_text_word_len
+##   <chr>                              <dbl>              <int>              <int>
+## 1 https://www.link~                      8                914                130
+## 2 https://www.link~                      4                739                 95
+## 3 https://www.link~                      3                189                 24
+## # i abbreviated name: 1: meta_total_experience_count
+## # i 2 more variables: meta_current_desc_present <dbl>,
+## #   meta_previous_desc_present <dbl>
+\end{verbatim}
+
+\subsection{Part 6: Labeling and Ground
+Truth}\label{part-6-labeling-and-ground-truth}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# Use the self{-}reported Skills field as weakly supervised ground truth.}
+\NormalTok{skills\_long }\OtherTok{\textless{}{-}}\NormalTok{ exp\_model }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{select}\NormalTok{(linkedin\_url, Skills) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{filter}\NormalTok{(}\SpecialCharTok{!}\FunctionTok{is.na}\NormalTok{(Skills), }\FunctionTok{str\_trim}\NormalTok{(Skills) }\SpecialCharTok{!=} \StringTok{""}\NormalTok{) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{separate\_rows}\NormalTok{(Skills, }\AttributeTok{sep =} \StringTok{","}\NormalTok{) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{mutate}\NormalTok{(}
+    \AttributeTok{skill =} \FunctionTok{str\_squish}\NormalTok{(}\FunctionTok{str\_to\_lower}\NormalTok{(Skills))}
+\NormalTok{  ) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{filter}\NormalTok{(skill }\SpecialCharTok{!=} \StringTok{""}\NormalTok{) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{distinct}\NormalTok{(linkedin\_url, skill)}
+
+\NormalTok{top\_skills }\OtherTok{\textless{}{-}}\NormalTok{ skills\_long }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{count}\NormalTok{(skill, }\AttributeTok{sort =} \ConstantTok{TRUE}\NormalTok{) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{slice\_head}\NormalTok{(}\AttributeTok{n =} \DecValTok{10}\NormalTok{)}
+
+\NormalTok{top\_skills}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## # A tibble: 10 x 2
+##    skill                  n
+##    <chr>              <int>
+##  1 leadership          1384
+##  2 microsoft excel     1244
+##  3 microsoft office    1049
+##  4 project management   884
+##  5 customer service     848
+##  6 management           844
+##  7 strategic planning   770
+##  8 public speaking      764
+##  9 data analysis        661
+## 10 communication        647
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# Sanitize skill names so they become valid, readable column names.}
+\NormalTok{sanitize\_skill\_name }\OtherTok{\textless{}{-}} \ControlFlowTok{function}\NormalTok{(x) \{}
+\NormalTok{  x }\SpecialCharTok{\%\textgreater{}\%}
+    \FunctionTok{str\_to\_lower}\NormalTok{() }\SpecialCharTok{\%\textgreater{}\%}
+    \FunctionTok{str\_replace\_all}\NormalTok{(}\StringTok{"[\^{}a{-}z0{-}9]+"}\NormalTok{, }\StringTok{"\_"}\NormalTok{) }\SpecialCharTok{\%\textgreater{}\%}
+    \FunctionTok{str\_replace\_all}\NormalTok{(}\StringTok{"\_+"}\NormalTok{, }\StringTok{"\_"}\NormalTok{) }\SpecialCharTok{\%\textgreater{}\%}
+    \FunctionTok{str\_replace\_all}\NormalTok{(}\StringTok{"\^{}\_|\_$"}\NormalTok{, }\StringTok{""}\NormalTok{)}
+\NormalTok{\}}
+
+\NormalTok{label\_matrix }\OtherTok{\textless{}{-}}\NormalTok{ skills\_long }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{filter}\NormalTok{(skill }\SpecialCharTok{\%in\%}\NormalTok{ top\_skills}\SpecialCharTok{$}\NormalTok{skill) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{mutate}\NormalTok{(}\AttributeTok{label\_name =} \FunctionTok{paste0}\NormalTok{(}\StringTok{"label\_"}\NormalTok{, }\FunctionTok{sanitize\_skill\_name}\NormalTok{(skill)), }\AttributeTok{value =} \DecValTok{1}\DataTypeTok{L}\NormalTok{) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{select}\NormalTok{(linkedin\_url, label\_name, value) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{pivot\_wider}\NormalTok{(}\AttributeTok{names\_from =}\NormalTok{ label\_name, }\AttributeTok{values\_from =}\NormalTok{ value, }\AttributeTok{values\_fill =} \DecValTok{0}\NormalTok{)}
+
+\NormalTok{label\_matrix }\SpecialCharTok{\%\textgreater{}\%} \FunctionTok{head}\NormalTok{(}\DecValTok{3}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## # A tibble: 3 x 11
+##   linkedin_url       label_communication label_project_manage~1 label_management
+##   <chr>                            <int>                  <int>            <int>
+## 1 https://www.linke~                   1                      1                1
+## 2 https://www.linke~                   0                      1                1
+## 3 https://www.linke~                   1                      0                0
+## # i abbreviated name: 1: label_project_management
+## # i 7 more variables: label_strategic_planning <int>,
+## #   label_customer_service <int>, label_microsoft_office <int>,
+## #   label_public_speaking <int>, label_leadership <int>,
+## #   label_microsoft_excel <int>, label_data_analysis <int>
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{model\_dataset }\OtherTok{\textless{}{-}}\NormalTok{ feature\_matrix }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{left\_join}\NormalTok{(metadata\_features, }\AttributeTok{by =} \StringTok{"linkedin\_url"}\NormalTok{) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{left\_join}\NormalTok{(label\_matrix, }\AttributeTok{by =} \StringTok{"linkedin\_url"}\NormalTok{) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{mutate}\NormalTok{(}\FunctionTok{across}\NormalTok{(}\FunctionTok{starts\_with}\NormalTok{(}\StringTok{"label\_"}\NormalTok{), }\SpecialCharTok{\textasciitilde{}}\FunctionTok{coalesce}\NormalTok{(., }\DecValTok{0}\DataTypeTok{L}\NormalTok{)))}
+
+\NormalTok{model\_dataset }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{summarise}\NormalTok{(}
+    \AttributeTok{rows =} \FunctionTok{n}\NormalTok{(),}
+    \AttributeTok{columns =} \FunctionTok{ncol}\NormalTok{(.),}
+    \AttributeTok{label\_columns =} \FunctionTok{sum}\NormalTok{(}\FunctionTok{str\_detect}\NormalTok{(}\FunctionTok{names}\NormalTok{(.), }\StringTok{"\^{}label\_"}\NormalTok{))}
+\NormalTok{  )}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## # A tibble: 1 x 3
+##    rows columns label_columns
+##   <int>   <int>         <int>
+## 1  5723    3542            10
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{label\_balance }\OtherTok{\textless{}{-}}\NormalTok{ model\_dataset }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{summarise}\NormalTok{(}\FunctionTok{across}\NormalTok{(}\FunctionTok{starts\_with}\NormalTok{(}\StringTok{"label\_"}\NormalTok{), }\SpecialCharTok{\textasciitilde{}}\FunctionTok{mean}\NormalTok{(. }\SpecialCharTok{==} \DecValTok{1}\NormalTok{))) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{pivot\_longer}\NormalTok{(}\AttributeTok{cols =} \FunctionTok{everything}\NormalTok{(), }\AttributeTok{names\_to =} \StringTok{"label"}\NormalTok{, }\AttributeTok{values\_to =} \StringTok{"positive\_rate"}\NormalTok{) }\SpecialCharTok{\%\textgreater{}\%}
+  \FunctionTok{mutate}\NormalTok{(}\AttributeTok{positive\_rate =} \FunctionTok{percent}\NormalTok{(positive\_rate))}
+
+\NormalTok{label\_balance}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## # A tibble: 10 x 2
+##    label                    positive_rate
+##    <chr>                    <chr>        
+##  1 label_communication      11.305%      
+##  2 label_project_management 15.429%      
+##  3 label_management         14.730%      
+##  4 label_strategic_planning 13.437%      
+##  5 label_customer_service   14.782%      
+##  6 label_microsoft_office   18.312%      
+##  7 label_public_speaking    13.332%      
+##  8 label_leadership         24.166%      
+##  9 label_microsoft_excel    21.719%      
+## 10 label_data_analysis      11.550%
+\end{verbatim}
+
+\subsection{Part 7: Data Partitioning}\label{part-7-data-partitioning}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# We split once at the profile level and carry both feature columns and label columns forward.}
+\FunctionTok{set.seed}\NormalTok{(}\DecValTok{621}\NormalTok{)}
+
+\NormalTok{n\_profiles }\OtherTok{\textless{}{-}} \FunctionTok{nrow}\NormalTok{(model\_dataset)}
+\NormalTok{train\_size }\OtherTok{\textless{}{-}} \FunctionTok{floor}\NormalTok{(}\FloatTok{0.70} \SpecialCharTok{*}\NormalTok{ n\_profiles)}
+\NormalTok{val\_size   }\OtherTok{\textless{}{-}} \FunctionTok{floor}\NormalTok{(}\FloatTok{0.15} \SpecialCharTok{*}\NormalTok{ n\_profiles)}
+\NormalTok{test\_size  }\OtherTok{\textless{}{-}}\NormalTok{ n\_profiles }\SpecialCharTok{{-}}\NormalTok{ train\_size }\SpecialCharTok{{-}}\NormalTok{ val\_size}
+
+\NormalTok{shuffled\_idx }\OtherTok{\textless{}{-}} \FunctionTok{sample}\NormalTok{(n\_profiles)}
+\NormalTok{train\_idx }\OtherTok{\textless{}{-}}\NormalTok{ shuffled\_idx[}\DecValTok{1}\SpecialCharTok{:}\NormalTok{train\_size]}
+\NormalTok{val\_idx   }\OtherTok{\textless{}{-}}\NormalTok{ shuffled\_idx[(train\_size }\SpecialCharTok{+} \DecValTok{1}\NormalTok{)}\SpecialCharTok{:}\NormalTok{(train\_size }\SpecialCharTok{+}\NormalTok{ val\_size)]}
+\NormalTok{test\_idx  }\OtherTok{\textless{}{-}}\NormalTok{ shuffled\_idx[(train\_size }\SpecialCharTok{+}\NormalTok{ val\_size }\SpecialCharTok{+} \DecValTok{1}\NormalTok{)}\SpecialCharTok{:}\NormalTok{n\_profiles]}
+
+\NormalTok{train\_data }\OtherTok{\textless{}{-}}\NormalTok{ model\_dataset[train\_idx, ]}
+\NormalTok{validation\_data }\OtherTok{\textless{}{-}}\NormalTok{ model\_dataset[val\_idx, ]}
+\NormalTok{test\_data }\OtherTok{\textless{}{-}}\NormalTok{ model\_dataset[test\_idx, ]}
+
+\FunctionTok{tibble}\NormalTok{(}
+  \AttributeTok{split =} \FunctionTok{c}\NormalTok{(}\StringTok{"train"}\NormalTok{, }\StringTok{"validation"}\NormalTok{, }\StringTok{"test"}\NormalTok{),}
+  \AttributeTok{rows =} \FunctionTok{c}\NormalTok{(}\FunctionTok{nrow}\NormalTok{(train\_data), }\FunctionTok{nrow}\NormalTok{(validation\_data), }\FunctionTok{nrow}\NormalTok{(test\_data)),}
+  \AttributeTok{pct =}\NormalTok{ scales}\SpecialCharTok{::}\FunctionTok{percent}\NormalTok{(}\FunctionTok{c}\NormalTok{(}\FunctionTok{nrow}\NormalTok{(train\_data), }\FunctionTok{nrow}\NormalTok{(validation\_data), }\FunctionTok{nrow}\NormalTok{(test\_data)) }\SpecialCharTok{/} \FunctionTok{nrow}\NormalTok{(model\_dataset))}
+\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## # A tibble: 3 x 3
+##   split       rows pct    
+##   <chr>      <int> <chr>  
+## 1 train       4006 69.998%
+## 2 validation   858 14.992%
+## 3 test         859 15.010%
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\FunctionTok{write\_csv}\NormalTok{(train\_data, }\StringTok{"train\_data.csv"}\NormalTok{)}
+\FunctionTok{write\_csv}\NormalTok{(validation\_data, }\StringTok{"validation\_data.csv"}\NormalTok{)}
+\FunctionTok{write\_csv}\NormalTok{(test\_data, }\StringTok{"test\_data.csv"}\NormalTok{)}
+\FunctionTok{write\_csv}\NormalTok{(top\_skills, }\StringTok{"top\_skill\_targets.csv"}\NormalTok{)}
+\FunctionTok{write\_csv}\NormalTok{(label\_balance, }\StringTok{"label\_balance\_summary.csv"}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\subsection{Part 8: Notes for CP8}\label{part-8-notes-for-cp8}
+
+The train, validation, and test CSV files created above are the modeling
+inputs for CP8. Each exported file contains:
+
+\begin{itemize}
+\tightlist
+\item
+  \texttt{linkedin\_url} as the profile identifier
+\item
+  TF-IDF feature columns
+\item
+  metadata columns prefixed with \texttt{meta\_}
+\item
+  label columns prefixed with \texttt{label\_}
+\end{itemize}
+
+In CP8, the team can select one label column at a time, such as
+\texttt{label\_data\_analysis} or \texttt{label\_project\_management},
+and compare multiple candidate models on the same held-out split.
+
+\end{document}

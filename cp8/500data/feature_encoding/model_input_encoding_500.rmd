@@ -1,0 +1,172 @@
+---
+title: "Model Input Encoding - 500 Profile Dataset"
+author: "Team"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+library(tidyverse)
+library(rsample)
+library(quanteda)
+library(Matrix)
+library(here)
+
+project_root <- normalizePath(file.path("..", "..", ".."))
+processed_dir <- file.path(project_root, "data", "processed")
+
+dir.create(processed_dir, recursive = TRUE, showWarnings = FALSE)
+```
+
+# Introduction
+
+In this section, we will split the 500-profile dataset into training,
+validation, and test sets, build TF-IDF text features, and create multi-label
+target matrices for the most frequent skills.
+
+## What This File Does
+
+- Loads `clean_text_data.rds` from preprocessing.
+- Splits the data into training, validation, and test sets.
+- Selects the top 30 skills from the training data only.
+- Creates binary target matrices for those top skills.
+- Converts cleaned profile text into TF-IDF feature matrices.
+- Saves `X_train`, `X_valid`, `X_test`, `y_train`, `y_valid`, `y_test`, and `top_skills`.
+
+# Load Clean Text Data
+
+```{r load-clean-text-data}
+df <- read_rds(file.path(processed_dir, "clean_text_data.rds"))
+
+glimpse(df)
+```
+
+# Create Train, Validation, and Test Splits
+
+```{r create-data-splits}
+set.seed(621)
+
+split_1 <- initial_split(df, prop = 0.70, strata = has_any_skill)
+train_data <- training(split_1)
+temp_data <- testing(split_1)
+
+split_2 <- initial_split(temp_data, prop = 0.50, strata = has_any_skill)
+valid_data <- training(split_2)
+test_data <- testing(split_2)
+
+nrow(train_data)
+nrow(valid_data)
+nrow(test_data)
+```
+
+# Choose Top Training Skills
+
+```{r choose-top-skills}
+TOP_N_SKILLS <- 30
+
+train_skill_freq <- train_data |>
+  select(linkedin_url, skills_list) |>
+  unnest(skills_list) |>
+  count(skills_list, sort = TRUE)
+
+top_skills <- train_skill_freq |>
+  slice_head(n = TOP_N_SKILLS) |>
+  pull(skills_list)
+
+top_skills
+```
+
+# Keep Top Skills in Each Split
+
+```{r keep-top-skills}
+keep_top_skills <- function(skill_vec, top_skills) {
+  skill_vec[skill_vec %in% top_skills]
+}
+
+train_data <- train_data |>
+  mutate(skills_top = map(skills_list, keep_top_skills, top_skills = top_skills))
+
+valid_data <- valid_data |>
+  mutate(skills_top = map(skills_list, keep_top_skills, top_skills = top_skills))
+
+test_data <- test_data |>
+  mutate(skills_top = map(skills_list, keep_top_skills, top_skills = top_skills))
+```
+
+# Build Binary Label Matrices
+
+```{r build-label-matrices}
+make_label_matrix <- function(df, top_skills) {
+  y <- matrix(0L, nrow = nrow(df), ncol = length(top_skills))
+  colnames(y) <- top_skills
+
+  for (i in seq_len(nrow(df))) {
+    present_skills <- df$skills_top[[i]]
+
+    if (length(present_skills) > 0) {
+      y[i, colnames(y) %in% present_skills] <- 1L
+    }
+  }
+
+  y
+}
+
+y_train <- make_label_matrix(train_data, top_skills)
+y_valid <- make_label_matrix(valid_data, top_skills)
+y_test <- make_label_matrix(test_data, top_skills)
+```
+
+# Build TF-IDF Features
+
+```{r build-tfidf-features}
+corp_train <- corpus(train_data$profile_text_nostop)
+corp_valid <- corpus(valid_data$profile_text_nostop)
+corp_test <- corpus(test_data$profile_text_nostop)
+
+dfm_train <- dfm(tokens(corp_train))
+dfm_valid <- dfm(tokens(corp_valid))
+dfm_test <- dfm(tokens(corp_test))
+
+dfm_train <- dfm_trim(dfm_train, min_termfreq = 3)
+feat_names <- featnames(dfm_train)
+
+dfm_valid <- dfm_match(dfm_valid, features = feat_names)
+dfm_test <- dfm_match(dfm_test, features = feat_names)
+
+tfidf_train <- dfm_tfidf(dfm_train)
+tfidf_valid <- dfm_tfidf(dfm_valid, force = TRUE)
+tfidf_test <- dfm_tfidf(dfm_test, force = TRUE)
+
+X_train <- as(tfidf_train, "dgCMatrix")
+X_valid <- as(tfidf_valid, "dgCMatrix")
+X_test <- as(tfidf_test, "dgCMatrix")
+
+dim(X_train)
+dim(X_valid)
+dim(X_test)
+
+dim(y_train)
+dim(y_valid)
+dim(y_test)
+```
+
+# Save Encoded Objects
+
+```{r save-encoded-objects}
+write_rds(train_data, file.path(processed_dir, "train_data.rds"))
+write_rds(valid_data, file.path(processed_dir, "valid_data.rds"))
+write_rds(test_data, file.path(processed_dir, "test_data.rds"))
+
+write_rds(top_skills, file.path(processed_dir, "top_skills.rds"))
+
+write_rds(X_train, file.path(processed_dir, "X_train.rds"))
+write_rds(X_valid, file.path(processed_dir, "X_valid.rds"))
+write_rds(X_test, file.path(processed_dir, "X_test.rds"))
+
+write_rds(y_train, file.path(processed_dir, "y_train.rds"))
+write_rds(y_valid, file.path(processed_dir, "y_valid.rds"))
+write_rds(y_test, file.path(processed_dir, "y_test.rds"))
+
+cat("Saved train, validation, test, TF-IDF, label, and top-skill objects to:", processed_dir, "\n")
+```

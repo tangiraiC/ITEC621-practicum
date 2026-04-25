@@ -1,0 +1,1101 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.7.33">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="author" content="Generated from Python Script">
+<meta name="dcterms.date" content="2026-04-07">
+
+<title>LinkedIn Data Cleaning Pipeline</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="datacleaning_files/libs/clipboard/clipboard.min.js"></script>
+<script src="datacleaning_files/libs/quarto-html/quarto.js" type="module"></script>
+<script src="datacleaning_files/libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="datacleaning_files/libs/quarto-html/popper.min.js"></script>
+<script src="datacleaning_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="datacleaning_files/libs/quarto-html/anchor.min.js"></script>
+<link href="datacleaning_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="datacleaning_files/libs/quarto-html/quarto-syntax-highlighting-ea385d0e468b0dd5ea5bf0780b1290d9.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="datacleaning_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="datacleaning_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="datacleaning_files/libs/bootstrap/bootstrap-81267100e462c21b3d6c0d5bf76a3417.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+
+
+</head>
+
+<body class="quarto-light">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of contents</h2>
+   
+  <ul>
+  <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview"><span class="header-section-number">1</span> Overview</a>
+  <ul class="collapse">
+  <li><a href="#expected-outputs" id="toc-expected-outputs" class="nav-link" data-scroll-target="#expected-outputs"><span class="header-section-number">1.1</span> Expected Outputs</a></li>
+  </ul></li>
+  <li><a href="#setup" id="toc-setup" class="nav-link" data-scroll-target="#setup"><span class="header-section-number">2</span> Setup</a>
+  <ul class="collapse">
+  <li><a href="#libraries" id="toc-libraries" class="nav-link" data-scroll-target="#libraries"><span class="header-section-number">2.1</span> Libraries</a></li>
+  <li><a href="#project-paths" id="toc-project-paths" class="nav-link" data-scroll-target="#project-paths"><span class="header-section-number">2.2</span> Project Paths</a></li>
+  <li><a href="#input-validation" id="toc-input-validation" class="nav-link" data-scroll-target="#input-validation"><span class="header-section-number">2.3</span> Input Validation</a></li>
+  </ul></li>
+  <li><a href="#cleaning-logic" id="toc-cleaning-logic" class="nav-link" data-scroll-target="#cleaning-logic"><span class="header-section-number">3</span> Cleaning Logic</a>
+  <ul class="collapse">
+  <li><a href="#helper-functions" id="toc-helper-functions" class="nav-link" data-scroll-target="#helper-functions"><span class="header-section-number">3.1</span> Helper Functions</a></li>
+  <li><a href="#experience-cleaning-function" id="toc-experience-cleaning-function" class="nav-link" data-scroll-target="#experience-cleaning-function"><span class="header-section-number">3.2</span> Experience Cleaning Function</a></li>
+  <li><a href="#dataset-specific-cleaning-functions" id="toc-dataset-specific-cleaning-functions" class="nav-link" data-scroll-target="#dataset-specific-cleaning-functions"><span class="header-section-number">3.3</span> Dataset-Specific Cleaning Functions</a></li>
+  <li><a href="#save-functions" id="toc-save-functions" class="nav-link" data-scroll-target="#save-functions"><span class="header-section-number">3.4</span> Save Functions</a></li>
+  </ul></li>
+  <li><a href="#execution" id="toc-execution" class="nav-link" data-scroll-target="#execution"><span class="header-section-number">4</span> Execution</a>
+  <ul class="collapse">
+  <li><a href="#run-the-pipeline" id="toc-run-the-pipeline" class="nav-link" data-scroll-target="#run-the-pipeline"><span class="header-section-number">4.1</span> Run The Pipeline</a></li>
+  <li><a href="#output-summary" id="toc-output-summary" class="nav-link" data-scroll-target="#output-summary"><span class="header-section-number">4.2</span> Output Summary</a></li>
+  </ul></li>
+  <li><a href="#summary" id="toc-summary" class="nav-link" data-scroll-target="#summary"><span class="header-section-number">5</span> Summary</a></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">LinkedIn Data Cleaning Pipeline</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    <div>
+    <div class="quarto-title-meta-heading">Author</div>
+    <div class="quarto-title-meta-contents">
+             <p>Generated from Python Script </p>
+          </div>
+  </div>
+    
+    <div>
+    <div class="quarto-title-meta-heading">Published</div>
+    <div class="quarto-title-meta-contents">
+      <p class="date">April 7, 2026</p>
+    </div>
+  </div>
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<section id="overview" class="level1" data-number="1">
+<h1 data-number="1"><span class="header-section-number">1</span> Overview</h1>
+<p>This Quarto document reproduces the LinkedIn cleaning workflow in <code>cleaningScripts/datacleaning.py</code>. It reads the raw 500-profile and 5K-profile datasets, cleans them, writes the processed CSV files, and shows preview tables in the rendered report.</p>
+<section id="expected-outputs" class="level2" data-number="1.1">
+<h2 data-number="1.1" class="anchored" data-anchor-id="expected-outputs"><span class="header-section-number">1.1</span> Expected Outputs</h2>
+<p>The document writes these files to <code>data/processed/</code>:</p>
+<ul>
+<li><code>cleaned_500_experiences.csv</code></li>
+<li><code>cleaned_500_current_experiences.csv</code></li>
+<li><code>cleaned_500_skills.csv</code></li>
+<li><code>cleaned_5k_experiences.csv</code></li>
+<li><code>cleaned_5k_skills.csv</code></li>
+</ul>
+</section>
+</section>
+<section id="setup" class="level1" data-number="2">
+<h1 data-number="2"><span class="header-section-number">2</span> Setup</h1>
+<section id="libraries" class="level2" data-number="2.1">
+<h2 data-number="2.1" class="anchored" data-anchor-id="libraries"><span class="header-section-number">2.1</span> Libraries</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(readr)</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(readxl)</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(dplyr)</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tidyr)</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(stringr)</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(knitr)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="project-paths" class="level2" data-number="2.2">
+<h2 data-number="2.2" class="anchored" data-anchor-id="project-paths"><span class="header-section-number">2.2</span> Project Paths</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>resolve_project_path <span class="ot">&lt;-</span> <span class="cf">function</span>(...) {</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  candidates <span class="ot">&lt;-</span> <span class="fu">c</span>(</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">normalizePath</span>(<span class="fu">file.path</span>(<span class="st">".."</span>, ...), <span class="at">winslash =</span> <span class="st">"/"</span>, <span class="at">mustWork =</span> <span class="cn">FALSE</span>),</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">normalizePath</span>(<span class="fu">file.path</span>(<span class="st">"."</span>, ...), <span class="at">winslash =</span> <span class="st">"/"</span>, <span class="at">mustWork =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>  existing_candidate <span class="ot">&lt;-</span> candidates[<span class="fu">file.exists</span>(candidates)][<span class="dv">1</span>]</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="sc">!</span><span class="fu">is.na</span>(existing_candidate)) {</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">return</span>(existing_candidate)</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>  candidates[[<span class="dv">1</span>]]</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>data_500_experience_full_path <span class="ot">&lt;-</span> <span class="fu">resolve_project_path</span>(</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>  <span class="st">"data"</span>, <span class="st">"raw"</span>, <span class="st">"LinkedIn_Scrape_500_Experiences_Wide_Full_List.csv"</span></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>data_500_experience_current_path <span class="ot">&lt;-</span> <span class="fu">resolve_project_path</span>(</span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>  <span class="st">"data"</span>, <span class="st">"raw"</span>, <span class="st">"LinkedIn_Scrape_500_Experiences_Wide_Current_List.csv"</span></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>data_500_skills_path <span class="ot">&lt;-</span> <span class="fu">resolve_project_path</span>(</span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>  <span class="st">"data"</span>, <span class="st">"raw"</span>, <span class="st">"LinkedIn_Scrape_500_Skills_List.csv"</span></span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>data_5k_experience_path <span class="ot">&lt;-</span> <span class="fu">resolve_project_path</span>(</span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>  <span class="st">"data"</span>, <span class="st">"raw"</span>, <span class="st">"LinkedIn_Scrape_full_5865.xlsx"</span></span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>data_5k_skills_path <span class="ot">&lt;-</span> <span class="fu">resolve_project_path</span>(</span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>  <span class="st">"data"</span>, <span class="st">"raw"</span>, <span class="st">"LinkedIn_Scrape_full_5865_Skills_List.csv"</span></span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a>processed_dir <span class="ot">&lt;-</span> <span class="fu">resolve_project_path</span>(<span class="st">"data"</span>, <span class="st">"processed"</span>)</span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a><span class="fu">dir.create</span>(processed_dir, <span class="at">recursive =</span> <span class="cn">TRUE</span>, <span class="at">showWarnings =</span> <span class="cn">FALSE</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="input-validation" class="level2" data-number="2.3">
+<h2 data-number="2.3" class="anchored" data-anchor-id="input-validation"><span class="header-section-number">2.3</span> Input Validation</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>required_input_files <span class="ot">&lt;-</span> <span class="fu">c</span>(</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  data_500_experience_full_path,</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>  data_500_experience_current_path,</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>  data_500_skills_path,</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>  data_5k_experience_path,</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>  data_5k_skills_path</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>missing_input_files <span class="ot">&lt;-</span> required_input_files[<span class="sc">!</span><span class="fu">file.exists</span>(required_input_files)]</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> (<span class="fu">length</span>(missing_input_files) <span class="sc">&gt;</span> <span class="dv">0</span>) {</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">stop</span>(</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>    <span class="fu">paste</span>(</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>      <span class="st">"Missing required input files:"</span>,</span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>      <span class="fu">paste</span>(missing_input_files, <span class="at">collapse =</span> <span class="st">", "</span>)</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>tibble<span class="sc">::</span><span class="fu">tibble</span>(</span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>  <span class="at">input_file =</span> <span class="fu">basename</span>(required_input_files),</span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>  <span class="at">location =</span> required_input_files</span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>) <span class="sc">|&gt;</span></span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>  knitr<span class="sc">::</span><span class="fu">kable</span>(<span class="at">caption =</span> <span class="st">"Validated input files"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<table class="caption-top table table-sm table-striped small">
+<caption>Validated input files</caption>
+<colgroup>
+<col style="width: 34%">
+<col style="width: 65%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">input_file</th>
+<th style="text-align: left;">location</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">LinkedIn_Scrape_500_Experiences_Wide_Full_List.csv</td>
+<td style="text-align: left;">/Users/fibonacci/Documents/practictum/data/raw/LinkedIn_Scrape_500_Experiences_Wide_Full_List.csv</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">LinkedIn_Scrape_500_Experiences_Wide_Current_List.csv</td>
+<td style="text-align: left;">/Users/fibonacci/Documents/practictum/data/raw/LinkedIn_Scrape_500_Experiences_Wide_Current_List.csv</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">LinkedIn_Scrape_500_Skills_List.csv</td>
+<td style="text-align: left;">/Users/fibonacci/Documents/practictum/data/raw/LinkedIn_Scrape_500_Skills_List.csv</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">LinkedIn_Scrape_full_5865.xlsx</td>
+<td style="text-align: left;">/Users/fibonacci/Documents/practictum/data/raw/LinkedIn_Scrape_full_5865.xlsx</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">LinkedIn_Scrape_full_5865_Skills_List.csv</td>
+<td style="text-align: left;">/Users/fibonacci/Documents/practictum/data/raw/LinkedIn_Scrape_full_5865_Skills_List.csv</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</section>
+</section>
+<section id="cleaning-logic" class="level1" data-number="3">
+<h1 data-number="3"><span class="header-section-number">3</span> Cleaning Logic</h1>
+<section id="helper-functions" class="level2" data-number="3.1">
+<h2 data-number="3.1" class="anchored" data-anchor-id="helper-functions"><span class="header-section-number">3.1</span> Helper Functions</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>join_columns <span class="ot">&lt;-</span> <span class="cf">function</span>(df, columns, output_column) {</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  existing_columns <span class="ot">&lt;-</span> columns[columns <span class="sc">%in%</span> <span class="fu">colnames</span>(df)]</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="fu">length</span>(existing_columns) <span class="sc">==</span> <span class="dv">0</span>) {</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">return</span>(df)</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>  df[[output_column]] <span class="ot">&lt;-</span> <span class="fu">apply</span>(df[, existing_columns, <span class="at">drop =</span> <span class="cn">FALSE</span>], <span class="dv">1</span>, <span class="cf">function</span>(row) {</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">paste</span>(<span class="fu">na.omit</span>(row), <span class="at">collapse =</span> <span class="st">" "</span>)</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>  })</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>  df <span class="ot">&lt;-</span> df[, <span class="sc">!</span><span class="fu">colnames</span>(df) <span class="sc">%in%</span> existing_columns]</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>  df</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>drop_prefixed_columns <span class="ot">&lt;-</span> <span class="cf">function</span>(df, prefix, max_index) {</span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>  columns_to_drop <span class="ot">&lt;-</span> <span class="fu">paste0</span>(prefix, <span class="st">"_"</span>, <span class="dv">1</span><span class="sc">:</span>max_index)</span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>  columns_to_drop <span class="ot">&lt;-</span> columns_to_drop[columns_to_drop <span class="sc">%in%</span> <span class="fu">colnames</span>(df)]</span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="fu">length</span>(columns_to_drop) <span class="sc">&gt;</span> <span class="dv">0</span>) {</span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>    df <span class="ot">&lt;-</span> df[, <span class="sc">!</span><span class="fu">colnames</span>(df) <span class="sc">%in%</span> columns_to_drop]</span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>  df</span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a>select_500_columns <span class="ot">&lt;-</span> <span class="cf">function</span>(df, <span class="at">max_index =</span> <span class="dv">27</span>) {</span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>  allowed_columns <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">"linkedinUrl"</span>, <span class="st">"jobDescription"</span>, <span class="st">"jobTitle"</span>, <span class="st">"companyName"</span>)</span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a>  allowed_columns <span class="ot">&lt;-</span> <span class="fu">c</span>(</span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a>    allowed_columns,</span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a>    <span class="fu">paste0</span>(<span class="st">"jobStartedOn_"</span>, <span class="dv">1</span><span class="sc">:</span>max_index),</span>
+<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a>    <span class="fu">paste0</span>(<span class="st">"jobEndedOn_"</span>, <span class="dv">1</span><span class="sc">:</span>max_index)</span>
+<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a>  allowed_columns <span class="ot">&lt;-</span> allowed_columns[allowed_columns <span class="sc">%in%</span> <span class="fu">colnames</span>(df)]</span>
+<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a>  df[, allowed_columns, drop <span class="ot">=</span> <span class="cn">FALSE</span>]</span>
+<span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="experience-cleaning-function" class="level2" data-number="3.2">
+<h2 data-number="3.2" class="anchored" data-anchor-id="experience-cleaning-function"><span class="header-section-number">3.2</span> Experience Cleaning Function</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>clean_full_experience_df <span class="ot">&lt;-</span> <span class="cf">function</span>(df, <span class="at">max_index =</span> <span class="dv">27</span>) {</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  job_description_columns <span class="ot">&lt;-</span> <span class="fu">paste0</span>(<span class="st">"jobDescription_"</span>, <span class="dv">1</span><span class="sc">:</span>max_index)</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>  title_columns <span class="ot">&lt;-</span> <span class="fu">paste0</span>(<span class="st">"title_"</span>, <span class="dv">1</span><span class="sc">:</span>max_index)</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>  company_name_columns <span class="ot">&lt;-</span> <span class="fu">paste0</span>(<span class="st">"companyName_"</span>, <span class="dv">1</span><span class="sc">:</span>max_index)</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>  df <span class="ot">&lt;-</span> <span class="fu">join_columns</span>(df, job_description_columns, <span class="st">"jobDescription"</span>)</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>  df <span class="ot">&lt;-</span> <span class="fu">join_columns</span>(df, title_columns, <span class="st">"jobTitle"</span>)</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>  df <span class="ot">&lt;-</span> <span class="fu">join_columns</span>(df, company_name_columns, <span class="st">"companyName"</span>)</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>  df <span class="ot">&lt;-</span> <span class="fu">drop_prefixed_columns</span>(df, <span class="st">"companyId"</span>, max_index)</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>  df <span class="ot">&lt;-</span> <span class="fu">drop_prefixed_columns</span>(df, <span class="st">"companySize"</span>, max_index)</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>  df <span class="ot">&lt;-</span> <span class="fu">drop_prefixed_columns</span>(df, <span class="st">"companyIndustry"</span>, max_index)</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>  df <span class="ot">&lt;-</span> <span class="fu">drop_prefixed_columns</span>(df, <span class="st">"companyWebsite"</span>, max_index)</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>  df <span class="ot">&lt;-</span> <span class="fu">drop_prefixed_columns</span>(df, <span class="st">"employmentType"</span>, max_index)</span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>  df <span class="ot">&lt;-</span> <span class="fu">drop_prefixed_columns</span>(df, <span class="st">"jobLocation"</span>, max_index)</span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>  df <span class="ot">&lt;-</span> <span class="fu">drop_prefixed_columns</span>(df, <span class="st">"jobLocationCountry"</span>, max_index)</span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>  df <span class="ot">&lt;-</span> <span class="fu">drop_prefixed_columns</span>(df, <span class="st">"jobStillWorking"</span>, max_index)</span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select_500_columns</span>(df, max_index)</span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="dataset-specific-cleaning-functions" class="level2" data-number="3.3">
+<h2 data-number="3.3" class="anchored" data-anchor-id="dataset-specific-cleaning-functions"><span class="header-section-number">3.3</span> Dataset-Specific Cleaning Functions</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>clean_500_dataset <span class="ot">&lt;-</span> <span class="cf">function</span>() {</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  df_experiences <span class="ot">&lt;-</span> <span class="fu">read_csv</span>(data_500_experience_full_path, <span class="at">show_col_types =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  df_current_experiences <span class="ot">&lt;-</span> <span class="fu">read_csv</span>(data_500_experience_current_path, <span class="at">show_col_types =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>  df_skills <span class="ot">&lt;-</span> <span class="fu">read_csv</span>(data_500_skills_path, <span class="at">show_col_types =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">list</span>(</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">experiences =</span> <span class="fu">clean_full_experience_df</span>(df_experiences),</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">current_experiences =</span> <span class="fu">clean_full_experience_df</span>(df_current_experiences, <span class="at">max_index =</span> <span class="dv">1</span>),</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">skills =</span> df_skills</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>clean_5k_dataset <span class="ot">&lt;-</span> <span class="cf">function</span>() {</span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>  df_experiences <span class="ot">&lt;-</span> <span class="fu">read_excel</span>(data_5k_experience_path, <span class="at">sheet =</span> <span class="st">"Scraped data"</span>)</span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>  df_skills <span class="ot">&lt;-</span> <span class="fu">read_csv</span>(data_5k_skills_path, <span class="at">show_col_types =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>  columns_to_drop <span class="ot">&lt;-</span> <span class="fu">c</span>(</span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>    <span class="st">"current_company_url"</span>,</span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>    <span class="st">"Company_size"</span>,</span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>    <span class="st">"last_scraped_date"</span>,</span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>    <span class="st">"previous_job_start_date"</span>,</span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a>    <span class="st">"previous_job_location"</span>,</span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a>    <span class="st">"previous_job_country"</span>,</span>
+<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a>    <span class="st">"previous_company_size"</span>,</span>
+<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a>    <span class="st">"employment_type"</span>,</span>
+<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a>    <span class="st">"is_currently_employed"</span>,</span>
+<span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a>    <span class="st">"current_job_country"</span>,</span>
+<span id="cb6-28"><a href="#cb6-28" aria-hidden="true" tabindex="-1"></a>    <span class="st">"current_job_location"</span>,</span>
+<span id="cb6-29"><a href="#cb6-29" aria-hidden="true" tabindex="-1"></a>    <span class="st">"current_job_start_date"</span>,</span>
+<span id="cb6-30"><a href="#cb6-30" aria-hidden="true" tabindex="-1"></a>    <span class="st">"email"</span>,</span>
+<span id="cb6-31"><a href="#cb6-31" aria-hidden="true" tabindex="-1"></a>    <span class="st">"full_name"</span>,</span>
+<span id="cb6-32"><a href="#cb6-32" aria-hidden="true" tabindex="-1"></a>    <span class="st">"education_start_year"</span>,</span>
+<span id="cb6-33"><a href="#cb6-33" aria-hidden="true" tabindex="-1"></a>    <span class="st">"education_end_year"</span>,</span>
+<span id="cb6-34"><a href="#cb6-34" aria-hidden="true" tabindex="-1"></a>    <span class="st">"previous_job_end_date"</span>,</span>
+<span id="cb6-35"><a href="#cb6-35" aria-hidden="true" tabindex="-1"></a>    <span class="st">"total_experience_years"</span>,</span>
+<span id="cb6-36"><a href="#cb6-36" aria-hidden="true" tabindex="-1"></a>    <span class="st">"current_job_duration_years"</span></span>
+<span id="cb6-37"><a href="#cb6-37" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb6-38"><a href="#cb6-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-39"><a href="#cb6-39" aria-hidden="true" tabindex="-1"></a>  columns_to_drop <span class="ot">&lt;-</span> columns_to_drop[columns_to_drop <span class="sc">%in%</span> <span class="fu">colnames</span>(df_experiences)]</span>
+<span id="cb6-40"><a href="#cb6-40" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="fu">length</span>(columns_to_drop) <span class="sc">&gt;</span> <span class="dv">0</span>) {</span>
+<span id="cb6-41"><a href="#cb6-41" aria-hidden="true" tabindex="-1"></a>    df_experiences <span class="ot">&lt;-</span> df_experiences[, <span class="sc">!</span><span class="fu">colnames</span>(df_experiences) <span class="sc">%in%</span> columns_to_drop]</span>
+<span id="cb6-42"><a href="#cb6-42" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb6-43"><a href="#cb6-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-44"><a href="#cb6-44" aria-hidden="true" tabindex="-1"></a>  <span class="fu">list</span>(</span>
+<span id="cb6-45"><a href="#cb6-45" aria-hidden="true" tabindex="-1"></a>    <span class="at">experiences =</span> df_experiences,</span>
+<span id="cb6-46"><a href="#cb6-46" aria-hidden="true" tabindex="-1"></a>    <span class="at">skills =</span> df_skills</span>
+<span id="cb6-47"><a href="#cb6-47" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb6-48"><a href="#cb6-48" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="save-functions" class="level2" data-number="3.4">
+<h2 data-number="3.4" class="anchored" data-anchor-id="save-functions"><span class="header-section-number">3.4</span> Save Functions</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>save_cleaned_data <span class="ot">&lt;-</span> <span class="cf">function</span>(data_list) {</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">write_csv</span>(data_list<span class="sc">$</span>experiences, <span class="fu">file.path</span>(processed_dir, <span class="st">"cleaned_500_experiences.csv"</span>))</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">write_csv</span>(</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    data_list<span class="sc">$</span>current_experiences,</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">file.path</span>(processed_dir, <span class="st">"cleaned_500_current_experiences.csv"</span>)</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">write_csv</span>(data_list<span class="sc">$</span>skills, <span class="fu">file.path</span>(processed_dir, <span class="st">"cleaned_500_skills.csv"</span>))</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>save_cleaned_5k_data <span class="ot">&lt;-</span> <span class="cf">function</span>(data_list) {</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">write_csv</span>(data_list<span class="sc">$</span>experiences, <span class="fu">file.path</span>(processed_dir, <span class="st">"cleaned_5k_experiences.csv"</span>))</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">write_csv</span>(data_list<span class="sc">$</span>skills, <span class="fu">file.path</span>(processed_dir, <span class="st">"cleaned_5k_skills.csv"</span>))</span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+</section>
+<section id="execution" class="level1" data-number="4">
+<h1 data-number="4"><span class="header-section-number">4</span> Execution</h1>
+<section id="run-the-pipeline" class="level2" data-number="4.1">
+<h2 data-number="4.1" class="anchored" data-anchor-id="run-the-pipeline"><span class="header-section-number">4.1</span> Run The Pipeline</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>data_500 <span class="ot">&lt;-</span> <span class="fu">clean_500_dataset</span>()</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="fu">save_cleaned_data</span>(data_500)</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>data_5k <span class="ot">&lt;-</span> <span class="fu">clean_5k_dataset</span>()</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="fu">save_cleaned_5k_data</span>(data_5k)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="output-summary" class="level2" data-number="4.2">
+<h2 data-number="4.2" class="anchored" data-anchor-id="output-summary"><span class="header-section-number">4.2</span> Output Summary</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>output_summary <span class="ot">&lt;-</span> tibble<span class="sc">::</span><span class="fu">tibble</span>(</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">file_name =</span> <span class="fu">c</span>(</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"cleaned_500_experiences.csv"</span>,</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"cleaned_500_current_experiences.csv"</span>,</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">"cleaned_500_skills.csv"</span>,</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">"cleaned_5k_experiences.csv"</span>,</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">"cleaned_5k_skills.csv"</span></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>  ),</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">rows =</span> <span class="fu">c</span>(</span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">nrow</span>(data_500<span class="sc">$</span>experiences),</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>    <span class="fu">nrow</span>(data_500<span class="sc">$</span>current_experiences),</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>    <span class="fu">nrow</span>(data_500<span class="sc">$</span>skills),</span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>    <span class="fu">nrow</span>(data_5k<span class="sc">$</span>experiences),</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>    <span class="fu">nrow</span>(data_5k<span class="sc">$</span>skills)</span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>  ),</span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>  <span class="at">columns =</span> <span class="fu">c</span>(</span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>    <span class="fu">ncol</span>(data_500<span class="sc">$</span>experiences),</span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>    <span class="fu">ncol</span>(data_500<span class="sc">$</span>current_experiences),</span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a>    <span class="fu">ncol</span>(data_500<span class="sc">$</span>skills),</span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a>    <span class="fu">ncol</span>(data_5k<span class="sc">$</span>experiences),</span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a>    <span class="fu">ncol</span>(data_5k<span class="sc">$</span>skills)</span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a>  ),</span>
+<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a>  <span class="at">output_path =</span> <span class="fu">file.path</span>(processed_dir, file_name)</span>
+<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a>knitr<span class="sc">::</span><span class="fu">kable</span>(output_summary, <span class="at">caption =</span> <span class="st">"Generated output files"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<table class="caption-top table table-sm table-striped small">
+<caption>Generated output files</caption>
+<colgroup>
+<col style="width: 25%">
+<col style="width: 4%">
+<col style="width: 5%">
+<col style="width: 64%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">file_name</th>
+<th style="text-align: right;">rows</th>
+<th style="text-align: right;">columns</th>
+<th style="text-align: left;">output_path</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">cleaned_500_experiences.csv</td>
+<td style="text-align: right;">452</td>
+<td style="text-align: right;">31</td>
+<td style="text-align: left;">/Users/fibonacci/Documents/practictum/data/processed/cleaned_500_experiences.csv</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">cleaned_500_current_experiences.csv</td>
+<td style="text-align: right;">452</td>
+<td style="text-align: right;">6</td>
+<td style="text-align: left;">/Users/fibonacci/Documents/practictum/data/processed/cleaned_500_current_experiences.csv</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">cleaned_500_skills.csv</td>
+<td style="text-align: right;">6364</td>
+<td style="text-align: right;">2</td>
+<td style="text-align: left;">/Users/fibonacci/Documents/practictum/data/processed/cleaned_500_skills.csv</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">cleaned_5k_experiences.csv</td>
+<td style="text-align: right;">5865</td>
+<td style="text-align: right;">13</td>
+<td style="text-align: left;">/Users/fibonacci/Documents/practictum/data/processed/cleaned_5k_experiences.csv</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">cleaned_5k_skills.csv</td>
+<td style="text-align: right;">77128</td>
+<td style="text-align: right;">2</td>
+<td style="text-align: left;">/Users/fibonacci/Documents/practictum/data/processed/cleaned_5k_skills.csv</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!--
+# Data Previews
+
+## 500 Dataset
+
+### Full Experience Preview
+
+
+::: {.cell}
+
+```{.r .cell-code}
+knitr::kable(head(data_500$experiences), caption = "500 full experiences preview")
+```
+
+::: {.cell-output-display}
+
+
+Table: 500 full experiences preview
+
+|linkedinUrl                                          |jobDescription                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |jobTitle                                                                                                                                                                                                                                                                                                                                                                                                                                   |companyName                                                                                                                                                                                                                    |jobStartedOn_1 |jobStartedOn_2 |jobStartedOn_3 |jobStartedOn_4 |jobStartedOn_5 |jobStartedOn_6 |jobStartedOn_7 |jobStartedOn_8 |jobStartedOn_9 |jobStartedOn_10 |jobStartedOn_11 |jobStartedOn_12 |jobStartedOn_13 |jobStartedOn_14 |jobStartedOn_15 |jobStartedOn_16 |jobStartedOn_17 |jobStartedOn_18 |jobStartedOn_19 |jobStartedOn_20 |jobStartedOn_21 |jobStartedOn_22 |jobStartedOn_23 | jobStartedOn_24| jobStartedOn_25| jobStartedOn_26|jobStartedOn_27 |
+|:----------------------------------------------------|:---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:--------------|:--------------|:--------------|:--------------|:--------------|:--------------|:--------------|:--------------|:--------------|:---------------|:---------------|:---------------|:---------------|:---------------|:---------------|:---------------|:---------------|:---------------|:---------------|:---------------|:---------------|:---------------|:---------------|---------------:|---------------:|---------------:|:---------------|
+|https://www.linkedin.com/in/dale-smith-18103b26/     |Asset Manager for the Calvert Mine, Twin Oaks Power Station, and Big Rooter Solar.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |Vice President, Asset Management Plant Manager Plant Manager of Patua Geothermal and Solar Operations and Maintenance Manager Operations and Environmental Health and Safety Supervisor 5th Man Plant Operator Geothermal Power Plant Operator Geothermal Power Plant Operator Excavator Operator and Trainer Second Dragline Dozer Dozer Operator Haul Truck Operator Merrill-Crowe Plant Operator Leach Crew Technician Crusher Operator |Panamint Capital Open Mountain Energy Cyrq Energy Cyrq Energy, Inc. Alterra Power Corp Magma Energy Corp Magma Energy Corp Constellation Energy Rio Tinto Rio Tinto Rio Tinto Rio Tinto Rio Tinto Rio Tinto Rio Tinto Minerals |12-2023        |2-2023         |7-2021         |1-2015         |8-2010         |10-2009        |1-2009         |10-2006        |1-2006         |4-2004          |8-2002          |6-2002          |6-2001          |1-2001          |6-1996          |NA              |NA              |NA              |NA              |NA              |NA              |NA              |NA              |              NA|              NA|              NA|NA              |
+|https://www.linkedin.com/in/daleward/                |Principal Global Investors is a diversified global asset management firm and a member of the Principal Financial Group®.  Our investment capabilities encompass a range of equity, fixed income and real estate investments, as well as specialized expertise in currency management, asset allocation, stable value management and other structured investment strategies.  As part of the IT Management team, I lead the application development areas that support the investment boutiques Front Office capabilities.  Front Office solutions are a combination of purchased solutions (e.g. Charles River, Bloomberg, Factset), custom built solutions for research, and customized solutions created in partnerships with external and internal resources.  PGI IT assists with hosting, working on custom builds, and working with boutiques to achieve scale with vendors.  
+
+Prior to joining Principal’s Global Investment business unit, I served in other IT leadership roles within Principal Financial Group in the Retirement Services area, and the central infrastructure area of the company.   I’ve led application development teams leveraging Java and COBOL to support applications for 401(k) participants and administrators, and have led the shared infrastructure teams supporting our J2EE WebSphere application serving environment and our Web Infrastructure team. Royco Hotels & Resorts in partnership with Chartwell Leisure managed 130 hotels in Canada and the United States.  In January of 1997, the partners decided to relocate all of the head office administration for the hotel operations to Calgary.  At that time they created the  position of Director MIS to provide the strategy, implementation and operation of information systems for the Canadian and United States operations.  In this role I supervised a staff of 14 located in two data centers, Calgary and San Diego.  The technical environment included an AS/400 based system in the US, and a UNIX and WindowsNT environment in Canada.    In May of 1998 the US portion of the company was sold to a US based property management firm.  As a result, the strategy to consolidate operations in Calgary was changed.  While my role was secure in leading the Canadian portion of the IT operations, I decided the scope was no longer the challenge I was looking for and decided to pursue opportunities in Iowa. In this position I had overall responsibility for the leadership, strategy, design, and operation of the corporate information systems for the 16th largest city in Canada.  My division provided central support to the program areas of the City, and included a staff of 43, with an operating budget of 3.3 million, and a 1.25 million dollar capital budget.  To meet the business needs of the civic administration we operated a municipal area network of over 1,000 personal computers.  The exciting challenge of this position was to deliver effective technology deployment and utilization for a large and diverse organization, in a limited funding and staffing situation.  The specific technical environment at the City included; 7 IBM RS/6000 servers running Oracle, Informix and Ingres database platforms.  The network operating systems included both Novell and WindowsNT. SaskEnergy, and its subsidiary, TransGas, provide natural gas distribution, transportation and storage services for the Western Canadian market.  As Manager Information Systems, I had responsibility for the technical support and development of the corporate computer infrastructure.  My team developed a wide area network of over 600 personal computers connected in 20 different locations across the province.  Utilizing key products such as WindowsNT, Microsoft Office, Lotus cc:Mail and Lotus Notes, our group provided an effective office automation environment.  The key application systems platforms included an IBM AS/400 mid-range system, and UNIX based servers running Oracle and Sybase database applications.  Specific projects at SaskEnergy included; implementation of the corporate electronic mail systems, a document imaging system, wireless communication links for remote local area network, Internet firewall, and participation on the corporate strategic planning committee. |Assistant Vice President - IT Director Information Technology Director MIS General Manager Information Systems Manager Information Systems                                                                                                                                                                                                                                                                                                 |Principal Global Investors Principal Global Investors Royco Hotels & Resorts City of Regina SaskEnergy                                                                                                                         |NA             |5-1998         |7-1997         |9-1995         |3-1991         |NA             |NA             |NA             |NA             |NA              |NA              |NA              |NA              |NA              |NA              |NA              |NA              |NA              |NA              |NA              |NA              |NA              |NA              |              NA|              NA|              NA|NA              |
+|https://www.linkedin.com/in/ting-qiu-cpa-6b7b2034/   |Wealth and Asset Management Affordable Housing and Not-for-Profit Theatrical entertainment                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |Director of Fund Accounting and Management Company Fund Controller Vice President Of Fund Accounting Audit Manager (asset management) Senior Auditor Accountant                                                                                                                                                                                                                                                                            |AGL Credit Management HPS Investment Partners, LLC Guggenheim Partners EY CohnReznick LLP Fried and Kowgios Partners CPAs LLP                                                                                                  |7-2024         |10-2022        |8-2021         |9-2016         |8-2015         |6-2014         |NA             |NA             |NA             |NA              |NA              |NA              |NA              |NA              |NA              |NA              |NA              |NA              |NA              |NA              |NA              |NA              |NA              |              NA|              NA|              NA|NA              |
+|https://www.linkedin.com/in/dale-white-9bb750b/      |•    Evaluated sites, both remote and in-person, for project suitability,  feasibility and risk for solar and storage projects. Coordinated energy production and battery dispatch modeling. 
+•   Created conceptual layouts, including equipment placement and single line diagrams for bidding and interconnect applications.
+•   Collaborated with various departments throughout the project realization cycle -Origination, Asset Management, Equipment Selection, Contracting, Construction and Financing.
+•   Identified opportunities to optimize project return by modifying design parameters, optimizing cost reduction and performance improvement to ensure best Levelized Cost of Energy (LCOE). 
+•   Reviewed technical documentation (EPC Contract, equipment specifications, warranties, studies, etc.) during due diligence and construction stage. Reviewed, approved, and stamped as needed electrical IFP, IFC and as-built drawings.
+•   Collaborated with bidders to secure optimal project design, construction, and operation. •  Designed over 100 MW of commercial and utility scale solar projects, including over 30MW (both LV and MV) in California as EOR. This includes the 16.4MW Westmont project and 6.1MW Lineage – Preferred Freezer project in Los Angeles.
+•   Designed MW+ 12kV NEM PV and BESS system for client in that allowed for remote monitoring and protection with shutdown by LADWP.
+•   Created drawings and documentation including single-lines, cable schedules, equipment layouts, calculations  for voltage, arc-fault, arc flash and specifications for all phases of the projects including concept, interconnection, permitting, construction and as-builts.
+•   Communicated with clients, AHJs and utilities as required to facilitate interconnection and permitting. Designed electrical power and lighting systems for clients in California including, multistory mixed use urban buildings, industrial and commercial repurposing projects. Title 24 compliance Specializing in hardware based courses for the computer engineering program. Classes consist mainly of 200 and 300 level courses in electronics and microprocessors. (CECS 100, 211, 311, 346)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |Senior Development Engineer Principal Electrical Engineer Electrical Engineer Lecturer                                                                                                                                                                                                                                                                                                                                                     |Distributed Asset Solutions Princeton Engineering and Solar Accessible Consulting Engineers Inc. California State University Long Beach, College of Engineering                                                                |7-2022         |1-2016         |7-2014         |8-2012         |NA             |NA             |NA             |NA             |NA             |NA              |NA              |NA              |NA              |NA              |NA              |NA              |NA              |NA              |NA              |NA              |NA              |NA              |NA              |              NA|              NA|              NA|NA              |
+|https://www.linkedin.com/in/david-dale-cfa-52a45214/ |Non-therapeutics analyst for ROCK2, an equity L/S hedge fund focused on global healthcare. Services and life-science tools coverage on fundamental equity long/short healthcare team.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |Senior Investment Analyst Senior Investment Analyst Investment Analyst Vice President, Institutional Equity Sales Vice President, Institutional Equity Research Sales Global Markets Analyst                                                                                                                                                                                                                                               |ROCK2 LLC EverPoint Asset Management Brant Point Capital Management Deutsche Bank Piper Jaffray RBC Capital Markets                                                                                                            |8-2025         |5-2023         |5-2019         |7-2017         |4-2013         |8-2011         |NA             |NA             |NA             |NA              |NA              |NA              |NA              |NA              |NA              |NA              |NA              |NA              |NA              |NA              |NA              |NA              |NA              |              NA|              NA|              NA|NA              |
+|https://www.linkedin.com/in/albright-dale-7b470110/  |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |Managing Director, Head of Money Fund Portfolio Management Co-Head Taxable Money Funds and Senior Portfolio Manager                                                                                                                                                                                                                                                                                                                        |BofA Capital Management Morgan Stanley Investment Management                                                                                                                                                                   |2008           |1990           |NA             |NA             |NA             |NA             |NA             |NA             |NA             |NA              |NA              |NA              |NA              |NA              |NA              |NA              |NA              |NA              |NA              |NA              |NA              |NA              |NA              |              NA|              NA|              NA|NA              |
+
+
+:::
+:::
+
+
+### Current Experience Preview
+
+
+::: {.cell}
+
+```{.r .cell-code}
+knitr::kable(
+  head(data_500$current_experiences),
+  caption = "500 current experiences preview"
+)
+```
+
+::: {.cell-output-display}
+
+
+Table: 500 current experiences preview
+
+|linkedinUrl                                          |jobDescription                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |jobTitle                                                   |companyName                 |jobStartedOn_1 |jobEndedOn_1 |
+|:----------------------------------------------------|:-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:----------------------------------------------------------|:---------------------------|:--------------|:------------|
+|https://www.linkedin.com/in/dale-smith-18103b26/     |Asset Manager for the Calvert Mine, Twin Oaks Power Station, and Big Rooter Solar.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |Vice President, Asset Management                           |Panamint Capital            |12-2023        |NA           |
+|https://www.linkedin.com/in/daleward/                |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |Assistant Vice President - IT                              |Principal Global Investors  |NA             |NA           |
+|https://www.linkedin.com/in/ting-qiu-cpa-6b7b2034/   |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |Director of Fund Accounting and Management Company         |AGL Credit Management       |7-2024         |NA           |
+|https://www.linkedin.com/in/dale-white-9bb750b/      |•    Evaluated sites, both remote and in-person, for project suitability,  feasibility and risk for solar and storage projects. Coordinated energy production and battery dispatch modeling. 
+•   Created conceptual layouts, including equipment placement and single line diagrams for bidding and interconnect applications.
+•   Collaborated with various departments throughout the project realization cycle -Origination, Asset Management, Equipment Selection, Contracting, Construction and Financing.
+•   Identified opportunities to optimize project return by modifying design parameters, optimizing cost reduction and performance improvement to ensure best Levelized Cost of Energy (LCOE). 
+•   Reviewed technical documentation (EPC Contract, equipment specifications, warranties, studies, etc.) during due diligence and construction stage. Reviewed, approved, and stamped as needed electrical IFP, IFC and as-built drawings.
+•   Collaborated with bidders to secure optimal project design, construction, and operation. |Senior Development Engineer                                |Distributed Asset Solutions |7-2022         |12-2023      |
+|https://www.linkedin.com/in/david-dale-cfa-52a45214/ |Non-therapeutics analyst for ROCK2, an equity L/S hedge fund focused on global healthcare.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |Senior Investment Analyst                                  |ROCK2 LLC                   |8-2025         |NA           |
+|https://www.linkedin.com/in/albright-dale-7b470110/  |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |Managing Director, Head of Money Fund Portfolio Management |BofA Capital Management     |2008           |2016         |
+
+
+:::
+:::
+
+
+### Skills Preview
+
+
+::: {.cell}
+
+```{.r .cell-code}
+knitr::kable(head(data_500$skills), caption = "500 skills preview")
+```
+
+::: {.cell-output-display}
+
+
+Table: 500 skills preview
+
+|linkedinUrl                                      |skill                             |
+|:------------------------------------------------|:---------------------------------|
+|https://www.linkedin.com/in/dale-smith-18103b26/ |Asset Management                  |
+|https://www.linkedin.com/in/dale-smith-18103b26/ |Energy                            |
+|https://www.linkedin.com/in/dale-smith-18103b26/ |Geothermal                        |
+|https://www.linkedin.com/in/dale-smith-18103b26/ |Plant Operations and Optimization |
+|https://www.linkedin.com/in/dale-smith-18103b26/ |Heavy Equipment Production        |
+|https://www.linkedin.com/in/dale-smith-18103b26/ |Environmental Compliance          |
+
+
+:::
+:::
+
+
+## 5K Dataset
+
+### Experience Preview
+
+
+::: {.cell}
+
+```{.r .cell-code}
+knitr::kable(head(data_5k$experiences), caption = "5K experiences preview")
+```
+
+::: {.cell-output-display}
+
+
+Table: 5K experiences preview
+
+|linkedin_url                                         |headline                                              |field_of_study                                                                      |current_job_title                                  |current_job_description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |current_company_name        |current_job_industry         |previous_job_title                         |previous_job_description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |previous_company_name                                          |previous_job_Industry |Skills                                                                                                                                                                                                                                                                                                                                                                              | total_experience_count|
+|:----------------------------------------------------|:-----------------------------------------------------|:-----------------------------------------------------------------------------------|:--------------------------------------------------|:-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:---------------------------|:----------------------------|:------------------------------------------|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:--------------------------------------------------------------|:---------------------|:-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------:|
+|https://www.linkedin.com/in/dalejankowski/           |Life Transitions and Estate Sale Services             |BA, Psychology                                                                      |Legacy Life Transitions Manager                    |NA                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |Legacy Life Transitions     |Wholesale Building Materials |Realtor                                    |•       Seniors Real Estate Specialist designation
+•   Sourced and directly meet with clients interested in selling their home, buying a home, or both to determine the client’s price range, the neighborhoods and home types they are interested in.
+•   Identify properties that are in alignment with client needs, inspect the properties, and inform clients of the availability before accompanying clients for viewing.
+•   Negotiate property prices, presents client's offer to seller until an agreement is reached, before signing contract to close sale.
+•   Connects clients to specialist during the buying and selling process including mortgage brokers, home inspectors and contractors to help ensure all necessary paperwork are in place for a successful sale. |Crye Leike Realtors                                            |NA                    |Communication, Project Management, Teamwork, Customer Satisfaction, Sales Management, Customer Experience, Business Development, Retail, Inventory Management, Product Ordering, Contract Negotiation, Budgets, Account Management, Marketing Strategy, Management, Strategic Planning, Ethical Leadership, Customer Service, Construction, Project Planning                        |                      8|
+|https://www.linkedin.com/in/dalewilliamb/            |Engineer                                              |Master of Science (SM), System Design and Management - Software Architecture        |Senior Backend Engineer                            |NA                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |RTK Tickets                 |Retail                       |Senior Product Engineer                    |•    Promoted quickly to a senior role, leading a team of engineers and managing projects from conception to completion.
+•   Spearheaded operational improvements resulting in significant cost savings ($100K annually) and efficiency gains.
+•   Successfully resolved a critical issue with a multimillion-dollar government missile launch system.
+•   Excelled in customer-centric problem-solving, translating complex requirements into tangible solutions.
+•   Designed and implemented a large-scale automated hydraulic production process for Boeing 787 fuselage parts.                                                                                                                                                                                                        |Pawling Engineered Products, Inc.                              |NA                    |Software Development, Object-Oriented Programming (OOP), Engineering, Technical Writing, Robotics, Business Planning, Mechanical Engineering, Machining, Manufacturing, Database Design, Test Driven Development, AutoCAD Mechanical, Matlab, Solidworks, Windows, C++, AutoCAD, Machine Tools, JavaScript, React.js                                                                |                      4|
+|https://www.linkedin.com/in/dale-morgan-77405912/    |Program Manager/Analyst  (Federal laws & regulations) |Bachelor of Arts (B.A.), Elementary Education and Teaching with minor in Psychology |Retired                                            |NA                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |Federal Government          |Government Administration    |NA                                         |NA                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |NA                                                             |NA                    |Microsoft Office, Project Management, Government, Strategic Planning, Change Management, Process Improvement, Project Planning, Team Building, Program Development, Public Speaking, Security Clearance, Team Leadership, Community Outreach, Leadership Development, Leadership, Management, Fundraising, Teaching, Nonprofits, Research                                           |                      3|
+|https://www.linkedin.com/in/dale-white-9bb750b/      |Senior Development Engineer                           |MSEE, Electrical Enginering                                                         |Senior Development Engineer                        |•    Evaluated sites, both remote and in-person, for project suitability,  feasibility and risk for solar and storage projects. Coordinated energy production and battery dispatch modeling. 
+•   Created conceptual layouts, including equipment placement and single line diagrams for bidding and interconnect applications.
+•   Collaborated with various departments throughout the project realization cycle -Origination, Asset Management, Equipment Selection, Contracting, Construction and Financing.
+•   Identified opportunities to optimize project return by modifying design parameters, optimizing cost reduction and performance improvement to ensure best Levelized Cost of Energy (LCOE). 
+•   Reviewed technical documentation (EPC Contract, equipment specifications, warranties, studies, etc.) during due diligence and construction stage. Reviewed, approved, and stamped as needed electrical IFP, IFC and as-built drawings.
+•   Collaborated with bidders to secure optimal project design, construction, and operation. |Distributed Asset Solutions |NA                           |Lecturer                                   |Specializing in hardware based courses for the computer engineering program. Classes consist mainly of 200 and 300 level courses in electronics and microprocessors. (CECS 100, 211, 311, 346)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |California State University Long Beach, College of Engineering |NA                    |Renewable Energy, Voltage, Short Circuit, Low-Voltage Engineering, Line Sizing, ETAP, Electrical Equipment, Calculations, Microsoft Office, Engineering, Procurement, and Construction (EPC), Communication, Project Design, Technical Planning, Project Engineering, Energy Storage, Electrical Engineering, Switchgear, Arc Flash Analysis, Technical Project Management, AutoCAD |                      4|
+|https://www.linkedin.com/in/david-dale-cfa-52a45214/ |Senior Investment Analyst                             |Bachelor of Science (B.S.), Accounting and Finance                                  |Senior Investment Analyst                          |Non-therapeutics analyst for ROCK2, an equity L/S hedge fund focused on global healthcare.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |ROCK2 LLC                   |Financial Services           |Vice President, Institutional Equity Sales |NA                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |Deutsche Bank                                                  |Financial Services    |Equities, Trading, Investments, Financial Modeling, Market Research, Finance, Bonds, Analysis, Financial Risk, Hedge Funds, Financial Analysis                                                                                                                                                                                                                                      |                      6|
+|https://www.linkedin.com/in/ting-qiu-cpa-6b7b2034/   |Director of Fund Accounting and Management Company    |Master's degree, Taxation                                                           |Director of Fund Accounting and Management Company |NA                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |AGL Credit Management       |Financial Services           |Audit Manager (asset management)           |Wealth and Asset Management                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |EY                                                             |Accounting            |Financial Analysis, QuickBooks, Financial Accounting, Accounting, Financial Reporting, Tax Accounting, Tax Preparation, Tax, Corporate Tax, Microsoft Excel, US GAAP, Auditing, PowerPoint, Microsoft Word, Microsoft Office, U.S. Generally Accepted Accounting Principles (GAAP)                                                                                                  |                      6|
+
+
+:::
+:::
+
+
+### Skills Preview
+
+
+::: {.cell}
+
+```{.r .cell-code}
+knitr::kable(head(data_5k$skills), caption = "5K skills preview")
+```
+
+::: {.cell-output-display}
+
+
+Table: 5K skills preview
+
+|linkedin_url                               |Skills                |
+|:------------------------------------------|:---------------------|
+|https://www.linkedin.com/in/dalejankowski/ |Communication         |
+|https://www.linkedin.com/in/dalejankowski/ |Project Management    |
+|https://www.linkedin.com/in/dalejankowski/ |Teamwork              |
+|https://www.linkedin.com/in/dalejankowski/ |Customer Satisfaction |
+|https://www.linkedin.com/in/dalejankowski/ |Sales Management      |
+|https://www.linkedin.com/in/dalejankowski/ |Customer Experience   |
+
+
+:::
+:::
+
+-->
+</section>
+</section>
+<section id="summary" class="level1" data-number="5">
+<h1 data-number="5"><span class="header-section-number">5</span> Summary</h1>
+<p>The Quarto document now runs the full cleaning workflow, validates the required input files before processing, writes all five output CSVs to <code>data/processed/</code>, and includes a structured summary plus preview tables in the rendered report.</p>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+        const codeEl = trigger.previousElementSibling.cloneNode(true);
+        for (const childEl of codeEl.children) {
+          if (isCodeAnnotation(childEl)) {
+            childEl.remove();
+          }
+        }
+        return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp('/' + window.location.host + '/');
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

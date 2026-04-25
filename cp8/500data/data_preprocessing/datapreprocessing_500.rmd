@@ -1,0 +1,109 @@
+---
+title: "Data Preprocessing - 500 Profile Dataset"
+author: "Team"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+library(tidyverse)
+library(stringr)
+library(textclean)
+library(stopwords)
+library(here)
+
+project_root <- normalizePath(file.path("..", "..", ".."))
+processed_dir <- file.path(project_root, "data", "processed")
+
+dir.create(processed_dir, recursive = TRUE, showWarnings = FALSE)
+```
+
+# Introduction
+
+In this section, we will clean and normalize the profile text from the
+500-profile dataset so it can be converted into machine-learning features
+consistently.
+
+## What This File Does
+
+- Loads `model_ready_data.rds` from the preparation step.
+- Cleans `profile_text` by removing URLs, emails, HTML, punctuation, and extra spaces.
+- Creates `profile_text_clean`, `token_count`, and `char_count`.
+- Removes rows with very little usable text.
+- Creates `profile_text_nostop` by removing common English stopwords.
+- Saves `clean_text_data.rds` and `clean_text_data.csv`.
+
+# Load Prepared Data
+
+```{r load-prepared-data}
+df <- read_rds(file.path(processed_dir, "model_ready_data.rds"))
+
+glimpse(df)
+```
+
+# Clean Profile Text
+
+```{r clean-profile-text}
+clean_text <- function(text) {
+  text |>
+    replace_non_ascii() |>
+    str_to_lower() |>
+    replace_url(replacement = " ") |>
+    replace_email(replacement = " ") |>
+    replace_html(replacement = " ") |>
+    str_replace_all("[^a-z0-9\\s]", " ") |>
+    str_replace_all("\\b\\d+\\b", " ") |>
+    str_replace_all("\\s+", " ") |>
+    str_trim()
+}
+
+stop_words <- stopwords("en")
+
+df_clean <- df |>
+  mutate(
+    profile_text_clean = map_chr(profile_text, clean_text),
+    token_count = str_count(profile_text_clean, "\\S+"),
+    char_count = nchar(profile_text_clean)
+  ) |>
+  filter(!is.na(profile_text_clean), profile_text_clean != "", token_count > 2)
+
+glimpse(df_clean)
+summary(df_clean$token_count)
+```
+
+# Remove Stopwords
+
+```{r remove-stopwords}
+remove_stopwords_from_string <- function(text, stop_words) {
+  tokens <- unlist(str_split(text, "\\s+"))
+  tokens <- tokens[!tokens %in% stop_words]
+  paste(tokens, collapse = " ")
+}
+
+df_clean <- df_clean |>
+  mutate(
+    profile_text_nostop = map_chr(
+      profile_text_clean,
+      remove_stopwords_from_string,
+      stop_words = stop_words
+    )
+  )
+
+df_clean |>
+  select(linkedin_url, profile_text_clean, profile_text_nostop, token_count, char_count) |>
+  head()
+```
+
+# Save Outputs
+
+```{r save-clean-data}
+clean_rds_path <- file.path(processed_dir, "clean_text_data.rds")
+clean_csv_path <- file.path(processed_dir, "clean_text_data.csv")
+
+write_rds(df_clean, clean_rds_path)
+write_csv(df_clean |> select(-skills_list), clean_csv_path)
+
+cat("Clean text RDS saved to:", clean_rds_path, "\n")
+cat("Clean text CSV saved to:", clean_csv_path, "\n")
+```

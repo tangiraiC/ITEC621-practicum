@@ -1,0 +1,278 @@
+---
+title: "5k Model: One-vs-Rest KNN"
+author: "Team"
+output: html_document
+---
+
+This notebook trains and evaluates the one-vs-rest KNN model for the 5k
+LinkedIn skills extraction dataset.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+library(dplyr)
+library(tibble)
+library(Matrix)
+library(class)
+```
+
+# Load Encoded 5k Inputs
+
+```{r load-data}
+project_root <- normalizePath(file.path("..", "..", "..", ".."))
+split_input_path <- file.path(project_root, "data", "processed", "train_validation_test_split.rds")
+
+split_objects <- readRDS(split_input_path)
+
+X_train <- split_objects$X_train
+X_validation <- split_objects$X_validation
+X_test <- split_objects$X_test
+
+y_train <- as.matrix(split_objects$y_train)
+y_validation <- as.matrix(split_objects$y_validation)
+y_test <- as.matrix(split_objects$y_test)
+
+retained_skills <- split_objects$retained_skills
+
+cat("X_train dimensions:", dim(X_train), "\n")
+cat("X_validation dimensions:", dim(X_validation), "\n")
+cat("X_test dimensions:", dim(X_test), "\n")
+cat("y_train dimensions:", dim(y_train), "\n")
+cat("y_validation dimensions:", dim(y_validation), "\n")
+cat("y_test dimensions:", dim(y_test), "\n")
+```
+
+# Modeling Scope
+
+```{r modeling-scope}
+max_model_labels <- 25
+
+label_prevalence <- colMeans(y_train)
+label_order <- order(label_prevalence, decreasing = TRUE)
+selected_label_indices <- label_order[seq_len(min(max_model_labels, length(label_order)))]
+
+y_train <- y_train[, selected_label_indices, drop = FALSE]
+y_validation <- y_validation[, selected_label_indices, drop = FALSE]
+y_test <- y_test[, selected_label_indices, drop = FALSE]
+retained_skills <- colnames(y_train)
+
+cat("Modeled labels:", ncol(y_train), "\n")
+print(retained_skills)
+```
+
+# Helper Functions
+
+```{r helper-functions}
+safe_divide <- function(num, den) {
+  ifelse(den == 0, 0, num / den)
+}
+
+evaluate_multilabel <- function(y_true, y_pred_binary) {
+  y_true <- as.matrix(y_true)
+  y_pred_binary <- as.matrix(y_pred_binary)
+
+  tp_micro <- sum((y_true == 1) & (y_pred_binary == 1))
+  fp_micro <- sum((y_true == 0) & (y_pred_binary == 1))
+  fn_micro <- sum((y_true == 1) & (y_pred_binary == 0))
+
+  precision_micro <- safe_divide(tp_micro, tp_micro + fp_micro)
+  recall_micro <- safe_divide(tp_micro, tp_micro + fn_micro)
+  f1_micro <- safe_divide(2 * precision_micro * recall_micro, precision_micro + recall_micro)
+
+  precision_by_label <- numeric(ncol(y_true))
+  recall_by_label <- numeric(ncol(y_true))
+  f1_by_label <- numeric(ncol(y_true))
+
+  for (j in seq_len(ncol(y_true))) {
+    tp <- sum((y_true[, j] == 1) & (y_pred_binary[, j] == 1))
+    fp <- sum((y_true[, j] == 0) & (y_pred_binary[, j] == 1))
+    fn <- sum((y_true[, j] == 1) & (y_pred_binary[, j] == 0))
+
+    p <- safe_divide(tp, tp + fp)
+    r <- safe_divide(tp, tp + fn)
+    f <- safe_divide(2 * p * r, p + r)
+
+    precision_by_label[j] <- p
+    recall_by_label[j] <- r
+    f1_by_label[j] <- f
+  }
+
+  tibble(
+    precision_micro = precision_micro,
+    recall_micro = recall_micro,
+    f1_micro = f1_micro,
+    precision_macro = mean(precision_by_label, na.rm = TRUE),
+    recall_macro = mean(recall_by_label, na.rm = TRUE),
+    f1_macro = mean(f1_by_label, na.rm = TRUE)
+  )
+}
+
+predict_binary_from_probs <- function(prob_matrix, threshold = 0.50) {
+  prob_matrix <- as.matrix(prob_matrix)
+
+  if (length(threshold) == 1) {
+    return(ifelse(prob_matrix >= threshold, 1L, 0L))
+  }
+
+  threshold_matrix <- matrix(
+    rep(threshold, each = nrow(prob_matrix)),
+    nrow = nrow(prob_matrix),
+    byrow = FALSE
+  )
+
+  ifelse(prob_matrix >= threshold_matrix, 1L, 0L)
+}
+
+has_two_classes <- function(y) {
+  length(unique(y)) == 2
+}
+
+tune_label_thresholds <- function(y_true, prob_matrix, grid = seq(0.05, 0.95, by = 0.05)) {
+  y_true <- as.matrix(y_true)
+  prob_matrix <- as.matrix(prob_matrix)
+  thresholds <- rep(0.50, ncol(y_true))
+  names(thresholds) <- colnames(y_true)
+
+  for (j in seq_len(ncol(y_true))) {
+    if (sum(y_true[, j] == 1) == 0) {
+      next
+    }
+
+    scores <- sapply(grid, function(threshold) {
+      pred <- ifelse(prob_matrix[, j] >= threshold, 1L, 0L)
+      tp <- sum((y_true[, j] == 1) & (pred == 1))
+      fp <- sum((y_true[, j] == 0) & (pred == 1))
+      fn <- sum((y_true[, j] == 1) & (pred == 0))
+      precision <- safe_divide(tp, tp + fp)
+      recall <- safe_divide(tp, tp + fn)
+      safe_divide(2 * precision * recall, precision + recall)
+    })
+
+    thresholds[j] <- grid[which.max(scores)]
+  }
+
+  thresholds
+}
+```
+
+# Train KNN
+
+```{r train-knn}
+set.seed(621)
+
+knn_feature_count <- min(500, ncol(X_train))
+feature_variance <- Matrix::colMeans(X_train != 0)
+top_feature_indices <- order(feature_variance, decreasing = TRUE)[seq_len(knn_feature_count)]
+
+X_train_dense_raw <- as.matrix(X_train[, top_feature_indices])
+X_validation_dense_raw <- as.matrix(X_validation[, top_feature_indices])
+X_test_dense_raw <- as.matrix(X_test[, top_feature_indices])
+
+knn_center <- colMeans(X_train_dense_raw)
+knn_scale <- apply(X_train_dense_raw, 2, sd)
+knn_scale[is.na(knn_scale) | knn_scale == 0] <- 1
+
+X_train_dense <- scale(X_train_dense_raw, center = knn_center, scale = knn_scale)
+X_validation_dense <- scale(X_validation_dense_raw, center = knn_center, scale = knn_scale)
+X_test_dense <- scale(X_test_dense_raw, center = knn_center, scale = knn_scale)
+
+k_value <- 5
+
+knn_validation_probs <- matrix(0, nrow = nrow(X_validation_dense), ncol = ncol(y_train))
+knn_test_probs <- matrix(0, nrow = nrow(X_test_dense), ncol = ncol(y_train))
+
+for (j in seq_len(ncol(y_train))) {
+  y_j <- y_train[, j]
+
+  if (has_two_classes(y_j)) {
+    train_labels_factor <- factor(y_j, levels = c(0, 1))
+
+    pred_validation <- knn(
+      train = X_train_dense,
+      test = X_validation_dense,
+      cl = train_labels_factor,
+      k = k_value,
+      prob = TRUE
+    )
+
+    pred_validation_char <- as.character(pred_validation)
+    pred_validation_prob <- ifelse(
+      pred_validation_char == "1",
+      attr(pred_validation, "prob"),
+      1 - attr(pred_validation, "prob")
+    )
+
+    knn_validation_probs[, j] <- pred_validation_prob
+
+    pred_test <- knn(
+      train = X_train_dense,
+      test = X_test_dense,
+      cl = train_labels_factor,
+      k = k_value,
+      prob = TRUE
+    )
+
+    pred_test_char <- as.character(pred_test)
+    pred_test_prob <- ifelse(
+      pred_test_char == "1",
+      attr(pred_test, "prob"),
+      1 - attr(pred_test, "prob")
+    )
+
+    knn_test_probs[, j] <- pred_test_prob
+  } else {
+    knn_validation_probs[, j] <- mean(y_j)
+    knn_test_probs[, j] <- mean(y_j)
+  }
+}
+
+colnames(knn_validation_probs) <- colnames(y_train)
+colnames(knn_test_probs) <- colnames(y_train)
+
+knn_thresholds <- tune_label_thresholds(y_validation, knn_validation_probs)
+
+knn_pred_validation <- predict_binary_from_probs(
+  knn_validation_probs,
+  threshold = knn_thresholds
+)
+
+knn_pred_test <- predict_binary_from_probs(
+  knn_test_probs,
+  threshold = knn_thresholds
+)
+
+knn_validation_metrics <- evaluate_multilabel(y_validation, knn_pred_validation)
+knn_test_metrics <- evaluate_multilabel(y_test, knn_pred_test)
+
+knn_validation_metrics
+knn_test_metrics
+```
+
+# Save Outputs
+
+```{r save-outputs}
+model_output_dir <- file.path(project_root, "data", "processed", "5k_model_outputs", "knn")
+dir.create(model_output_dir, recursive = TRUE, showWarnings = FALSE)
+
+knn_results <- list(
+  model = "KNN",
+  validation_metrics = knn_validation_metrics,
+  test_metrics = knn_test_metrics,
+  thresholds = knn_thresholds,
+  k_value = k_value,
+  top_feature_indices = top_feature_indices,
+  center = knn_center,
+  scale = knn_scale,
+  validation_probabilities = knn_validation_probs,
+  test_probabilities = knn_test_probs,
+  validation_predictions = knn_pred_validation,
+  test_predictions = knn_pred_test,
+  retained_skills = retained_skills
+)
+
+saveRDS(knn_results, file.path(model_output_dir, "knn_5k_results.rds"))
+write.csv(knn_validation_metrics, file.path(model_output_dir, "validation_metrics.csv"), row.names = FALSE)
+write.csv(knn_test_metrics, file.path(model_output_dir, "test_metrics.csv"), row.names = FALSE)
+
+cat("KNN outputs saved to:", model_output_dir, "\n")
+```

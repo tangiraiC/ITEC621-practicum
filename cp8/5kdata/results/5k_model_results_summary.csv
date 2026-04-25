@@ -1,0 +1,5 @@
+model,split,precision_micro,recall_micro,f1_micro,precision_macro,recall_macro,f1_macro
+Baseline Frequency Prior,Test,0.113811,1.000000,0.204363,0.113811,1.000000,0.200890
+Logistic Regression,Test,0.114989,0.970812,0.205623,0.121907,0.966123,0.203083
+KNN,Test,0.149788,0.282687,0.195818,0.130998,0.248745,0.170511
+XGBoost,Test,0.195704,0.524590,0.285062,0.209365,0.477328,0.273461

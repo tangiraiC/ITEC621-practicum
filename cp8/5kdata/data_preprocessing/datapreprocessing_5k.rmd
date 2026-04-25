@@ -1,0 +1,210 @@
+---
+title: "CP8 Data Preprocessing"
+author: "Lincoln Chanakira"
+output: html_document
+---
+
+This notebook takes the prepared LinkedIn dataset from the data preparation step and cleans it for modeling. The main goals are to standardize text, normalize categorical fields, parse skills into reusable lists, add simple feature flags, and save a consistent preprocessed dataset.
+
+The setup chunk controls how code, warnings, and messages appear in the rendered HTML output.
+
+```{r setup, include=FALSE}
+# Set global knitting options for cleaner rendered output.
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+# Load Packages
+
+This block loads the packages used for importing CSV files, transforming data frames, cleaning strings, and reshaping summary tables.
+
+```{r packages}
+# Load packages for reading, cleaning, transforming, and summarizing the data.
+library(readr)
+library(dplyr)
+library(stringr)
+library(tidyr)
+```
+
+# Import Prepared 5k Dataset
+
+This block reads the prepared dataset that was created in `datapreparation.rmd`. It also prints the dataset dimensions and a quick preview so we can confirm the expected file was loaded.
+
+```{r import-prepared-data}
+# Import the prepared LinkedIn dataset that will be cleaned for modeling.
+prepared_input_path <- "../../../data/processed/linkedin_full_5865_prepared.csv"
+
+linkedin_prepared <- read_csv(prepared_input_path, show_col_types = FALSE)
+
+cat("Prepared dataset shape:", dim(linkedin_prepared), "\n")
+glimpse(linkedin_prepared)
+head(linkedin_prepared)
+```
+
+# Helper Functions
+
+This block defines reusable cleaning functions. Keeping the cleaning rules in functions makes the preprocessing steps more consistent and easier to update later.
+
+```{r helper-functions}
+# Define reusable text, category, identifier, and skills parsing helpers.
+clean_text <- function(x) {
+  x <- ifelse(is.na(x), "", as.character(x))
+  x <- tolower(x)
+  x <- gsub("[\r\n\t]+", " ", x)
+  x <- gsub("[[:punct:]]+", " ", x)
+  x <- gsub("[[:digit:]]+", " ", x)
+  x <- gsub("\\s+", " ", x)
+  trimws(x)
+}
+
+clean_category <- function(x) {
+  x <- ifelse(is.na(x), "unknown", as.character(x))
+  x <- tolower(x)
+  x <- gsub("\\s+", " ", x)
+  x <- trimws(x)
+  ifelse(x == "", "unknown", x)
+}
+
+clean_identifier <- function(x) {
+  x <- ifelse(is.na(x), "", as.character(x))
+  trimws(x)
+}
+
+split_skills <- function(x) {
+  x <- ifelse(is.na(x), "", as.character(x))
+  x <- tolower(x)
+  x <- trimws(x)
+  x <- gsub("\\s*[,;|]\\s*", ",", x)
+  x <- strsplit(x, ",")
+  lapply(x, function(skill_vec) {
+    skill_vec <- trimws(skill_vec)
+    skill_vec <- skill_vec[skill_vec != ""]
+    unique(skill_vec)
+  })
+}
+
+count_skills <- function(skill_list) {
+  lengths(skill_list)
+}
+
+collapse_skills <- function(skill_list) {
+  vapply(skill_list, paste, collapse = ", ", FUN.VALUE = character(1))
+}
+```
+
+# Preprocess Dataset
+
+This block applies the main preprocessing rules. It standardizes column names, cleans text fields, fills missing numeric experience values with zero, creates description indicator variables, combines job text into one `profile_text` field, removes blank LinkedIn URLs, and deduplicates profiles.
+
+```{r preprocess-data}
+# Clean and standardize the profile-level fields used later for encoding and modeling.
+linkedin_preprocessed <- linkedin_prepared |>
+  rename(
+    skills = Skills,
+    previous_job_industry = previous_job_Industry
+  ) |>
+  mutate(
+    linkedin_url = clean_identifier(linkedin_url),
+    headline = clean_text(headline),
+    field_of_study = clean_text(field_of_study),
+    current_job_title = clean_text(current_job_title),
+    current_job_description = clean_text(current_job_description),
+    current_company_name = clean_text(current_company_name),
+    current_job_industry = clean_category(current_job_industry),
+    current_job_country = clean_category(current_job_country),
+    current_job_location = clean_category(current_job_location),
+    previous_job_title = clean_text(previous_job_title),
+    previous_job_description = clean_text(previous_job_description),
+    previous_job_country = clean_category(previous_job_country),
+    previous_job_location = clean_category(previous_job_location),
+    previous_job_industry = clean_category(previous_job_industry),
+    skills = ifelse(is.na(skills), "", as.character(skills)),
+    skills = tolower(skills),
+    skills = gsub("\\s*[,;|]\\s*", ",", skills),
+    skills = trimws(skills),
+    total_experience_years = ifelse(is.na(total_experience_years), 0, total_experience_years),
+    total_experience_count = ifelse(is.na(total_experience_count), 0, total_experience_count),
+    has_current_job_description = ifelse(current_job_description == "", 0, 1),
+    has_previous_job_description = ifelse(previous_job_description == "", 0, 1),
+    profile_text = clean_text(paste(
+      headline,
+      current_job_title,
+      current_job_description,
+      previous_job_title,
+      previous_job_description,
+      sep = " "
+    ))
+  ) |>
+  filter(linkedin_url != "") |>
+  distinct(linkedin_url, .keep_all = TRUE)
+
+cat("Preprocessed dataset shape:", dim(linkedin_preprocessed), "\n")
+glimpse(linkedin_preprocessed)
+head(linkedin_preprocessed)
+```
+
+# Skills Processing
+
+This block converts the cleaned skills string into a list of unique skills for each profile. It also counts the number of skills per profile, which becomes a useful diagnostic and modeling feature.
+
+```{r skills-processing}
+# Parse each profile's skills into a list and count the number of unique skills.
+linkedin_preprocessed <- linkedin_preprocessed |>
+  mutate(
+    skills_list = split_skills(skills),
+    skill_count = count_skills(skills_list)
+  )
+
+linkedin_preprocessed |>
+  select(linkedin_url, skills, skill_count) |>
+  head()
+```
+
+# Missing Values Check
+
+This block checks how many missing values remain in each column after preprocessing. This is a quality-control step to make sure the modeling inputs do not have unexpected gaps.
+
+```{r missing-values}
+# Summarize remaining missing values by column after cleaning.
+missing_summary <- linkedin_preprocessed |>
+  summarise(across(everything(), ~ sum(is.na(.)))) |>
+  pivot_longer(
+    cols = everything(),
+    names_to = "column",
+    values_to = "missing_count"
+  ) |>
+  arrange(desc(missing_count))
+
+missing_summary
+```
+
+# Preprocessing Summary Checks
+
+This block reports high-level checks for the cleaned dataset. These summary values help confirm that the profile count, description coverage, and skill counts look reasonable before encoding.
+
+```{r preprocessing-checks}
+# Report summary diagnostics for profile coverage and skill counts.
+linkedin_preprocessed |>
+  summarise(
+    total_profiles = n(),
+    profiles_with_current_desc = sum(has_current_job_description),
+    profiles_with_previous_desc = sum(has_previous_job_description),
+    avg_skill_count = mean(skill_count),
+    median_skill_count = median(skill_count)
+  )
+```
+
+# Save Preprocessed Dataset
+
+This block saves the cleaned dataset to `data/processed`. The `skills_list` column is collapsed back into text first because CSV files cannot store R list columns directly.
+
+```{r save-preprocessed-data}
+# Save the cleaned dataset for the model input encoding step.
+preprocessed_output_path <- "../../../data/processed/linkedin_full_5865_preprocessed.csv"
+
+linkedin_preprocessed_output <- linkedin_preprocessed |>
+  mutate(skills_list = collapse_skills(skills_list))
+
+write_csv(linkedin_preprocessed_output, preprocessed_output_path)
+
+cat("Preprocessed dataset saved to:", preprocessed_output_path, "\n")
+```

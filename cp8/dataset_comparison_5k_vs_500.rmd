@@ -1,0 +1,354 @@
+---
+title: "5k vs 500 Dataset Comparison"
+author: "Team"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+library(tidyverse)
+library(tidytext)
+library(here)
+
+processed_dir <- file.path("..", "data", "processed")
+results_dir <- file.path("..", "results")
+comparison_dir <- file.path("..", "results", "dataset_comparison")
+
+dir.create(comparison_dir, recursive = TRUE, showWarnings = FALSE)
+```
+
+# Introduction
+
+This notebook compares the original 5k LinkedIn dataset and the 500-profile
+dataset at the processed-data level. The goal is to show differences in dataset
+size, text coverage, skill label coverage, and modeling readiness, then recommend
+which dataset is stronger for the CP8 skills extraction pipeline.
+
+# Load Processed Datasets
+
+```{r load-processed-datasets}
+data_5k_path <- file.path(processed_dir, "linkedin_full_5865_preprocessed.csv")
+data_500_path <- file.path(processed_dir, "clean_text_data.rds")
+
+data_5k_raw <- read_csv(data_5k_path, show_col_types = FALSE)
+data_500_raw <- read_rds(data_500_path)
+
+cat("5k processed data shape:", dim(data_5k_raw), "\n")
+cat("500 processed data shape:", dim(data_500_raw), "\n")
+
+glimpse(data_5k_raw)
+glimpse(data_500_raw)
+```
+
+# Harmonize Common Fields
+
+```{r harmonize-common-fields}
+split_skill_string <- function(x) {
+  x <- ifelse(is.na(x), "", as.character(x))
+  x <- str_to_lower(x)
+  x <- str_replace_all(x, "\\s*[,;|]\\s*", ",")
+  str_split(x, ",") |>
+    map(~ {
+      skills <- str_squish(.x)
+      skills <- skills[skills != ""]
+      unique(skills)
+    })
+}
+
+count_words <- function(x) {
+  str_count(ifelse(is.na(x), "", x), "\\S+")
+}
+
+data_5k <- data_5k_raw |>
+  mutate(
+    dataset = "5k dataset",
+    profile_text_compare = profile_text,
+    token_count_compare = count_words(profile_text_compare),
+    char_count_compare = nchar(profile_text_compare),
+    skills_compare = split_skill_string(skills),
+    skill_count_compare = lengths(skills_compare),
+    has_any_skill_compare = if_else(skill_count_compare > 0, 1L, 0L)
+  ) |>
+  select(
+    dataset,
+    linkedin_url,
+    profile_text_compare,
+    token_count_compare,
+    char_count_compare,
+    skills_compare,
+    skill_count_compare,
+    has_any_skill_compare,
+    has_current_job_description,
+    has_previous_job_description,
+    total_experience_count
+  )
+
+data_500 <- data_500_raw |>
+  mutate(
+    dataset = "500 dataset",
+    profile_text_compare = profile_text_clean,
+    token_count_compare = token_count,
+    char_count_compare = char_count,
+    skills_compare = skills_list,
+    skill_count_compare = skill_count,
+    has_any_skill_compare = has_any_skill
+  ) |>
+  select(
+    dataset,
+    linkedin_url,
+    profile_text_compare,
+    token_count_compare,
+    char_count_compare,
+    skills_compare,
+    skill_count_compare,
+    has_any_skill_compare,
+    has_current_job_description,
+    has_previous_job_description,
+    total_experience_count
+  )
+
+combined_processed <- bind_rows(data_5k, data_500)
+
+combined_processed |>
+  count(dataset)
+```
+
+# Summary Comparison
+
+```{r summary-comparison}
+summary_comparison <- combined_processed |>
+  group_by(dataset) |>
+  summarise(
+    profiles = n(),
+    profiles_with_skills = sum(has_any_skill_compare),
+    pct_profiles_with_skills = mean(has_any_skill_compare) * 100,
+    avg_skill_count = mean(skill_count_compare),
+    median_skill_count = median(skill_count_compare),
+    avg_token_count = mean(token_count_compare),
+    median_token_count = median(token_count_compare),
+    avg_char_count = mean(char_count_compare),
+    pct_current_description = mean(has_current_job_description) * 100,
+    pct_previous_description = mean(has_previous_job_description) * 100,
+    avg_experience_count = mean(total_experience_count),
+    .groups = "drop"
+  )
+
+summary_comparison
+
+write_csv(summary_comparison, file.path(comparison_dir, "dataset_summary_comparison.csv"))
+```
+
+# Unique Skill Coverage
+
+```{r unique-skill-coverage}
+skill_coverage <- combined_processed |>
+  select(dataset, skills_compare) |>
+  unnest(skills_compare) |>
+  filter(!is.na(skills_compare), skills_compare != "") |>
+  group_by(dataset) |>
+  summarise(
+    unique_skills = n_distinct(skills_compare),
+    total_skill_assignments = n(),
+    .groups = "drop"
+  )
+
+skill_coverage
+
+write_csv(skill_coverage, file.path(comparison_dir, "skill_coverage_comparison.csv"))
+```
+
+# Top Skills by Dataset
+
+```{r top-skills}
+top_skills_by_dataset <- combined_processed |>
+  select(dataset, skills_compare) |>
+  unnest(skills_compare) |>
+  filter(!is.na(skills_compare), skills_compare != "") |>
+  count(dataset, skills_compare, sort = TRUE) |>
+  group_by(dataset) |>
+  slice_max(order_by = n, n = 15, with_ties = FALSE) |>
+  ungroup()
+
+top_skills_by_dataset
+
+write_csv(top_skills_by_dataset, file.path(comparison_dir, "top_skills_by_dataset.csv"))
+```
+
+# Graphical Comparison
+
+```{r graphical-comparison, fig.width=10, fig.height=6}
+profile_count_plot <- summary_comparison |>
+  ggplot(aes(x = dataset, y = profiles, fill = dataset)) +
+  geom_col(show.legend = FALSE) +
+  geom_text(aes(label = scales::comma(profiles)), vjust = -0.3) +
+  labs(
+    title = "Profile Count by Dataset",
+    x = NULL,
+    y = "Profiles"
+  ) +
+  theme_minimal()
+
+profile_count_plot
+
+ggsave(
+  filename = file.path(comparison_dir, "profile_count_comparison.png"),
+  plot = profile_count_plot,
+  width = 10,
+  height = 6
+)
+```
+
+```{r token-distribution-plot, fig.width=10, fig.height=6}
+token_distribution_plot <- combined_processed |>
+  ggplot(aes(x = token_count_compare, fill = dataset)) +
+  geom_histogram(bins = 40, alpha = 0.65, position = "identity") +
+  facet_wrap(~ dataset, scales = "free_y") +
+  labs(
+    title = "Profile Text Token Count Distribution",
+    x = "Token count",
+    y = "Profiles"
+  ) +
+  theme_minimal()
+
+token_distribution_plot
+
+ggsave(
+  filename = file.path(comparison_dir, "token_count_distribution.png"),
+  plot = token_distribution_plot,
+  width = 10,
+  height = 6
+)
+```
+
+```{r skill-count-plot, fig.width=10, fig.height=6}
+skill_count_plot <- combined_processed |>
+  ggplot(aes(x = skill_count_compare, fill = dataset)) +
+  geom_histogram(bins = 35, alpha = 0.65, position = "identity") +
+  facet_wrap(~ dataset, scales = "free_y") +
+  labs(
+    title = "Skill Count Distribution",
+    x = "Skills per profile",
+    y = "Profiles"
+  ) +
+  theme_minimal()
+
+skill_count_plot
+
+ggsave(
+  filename = file.path(comparison_dir, "skill_count_distribution.png"),
+  plot = skill_count_plot,
+  width = 10,
+  height = 6
+)
+```
+
+```{r top-skills-plot, fig.width=12, fig.height=8}
+top_skills_plot <- top_skills_by_dataset |>
+  mutate(skills_compare = reorder_within(skills_compare, n, dataset)) |>
+  ggplot(aes(x = skills_compare, y = n, fill = dataset)) +
+  geom_col(show.legend = FALSE) +
+  coord_flip() +
+  facet_wrap(~ dataset, scales = "free_y") +
+  scale_x_reordered() +
+  labs(
+    title = "Top 15 Skills by Dataset",
+    x = NULL,
+    y = "Profiles with skill"
+  ) +
+  theme_minimal()
+
+top_skills_plot
+
+ggsave(
+  filename = file.path(comparison_dir, "top_skills_comparison.png"),
+  plot = top_skills_plot,
+  width = 12,
+  height = 8
+)
+```
+
+# Modeling Result Comparison
+
+```{r modeling-result-comparison}
+model_results_5k_path <- file.path(processed_dir, "cp8_model_results.rds")
+model_results_500_path <- file.path(results_dir, "test_results.csv")
+
+modeling_comparison <- tibble()
+
+if (file.exists(model_results_5k_path)) {
+  results_5k <- read_rds(model_results_5k_path)$test_results |>
+    mutate(dataset = "5k dataset") |>
+    select(dataset, model, precision_micro, recall_micro, f1_micro, f1_macro)
+
+  modeling_comparison <- bind_rows(modeling_comparison, results_5k)
+}
+
+if (file.exists(model_results_500_path)) {
+  results_500 <- read_csv(model_results_500_path, show_col_types = FALSE) |>
+    mutate(dataset = "500 dataset") |>
+    select(dataset, model, precision_micro, recall_micro, f1_micro, f1_macro = macro_f1)
+
+  modeling_comparison <- bind_rows(modeling_comparison, results_500)
+}
+
+modeling_comparison
+
+write_csv(modeling_comparison, file.path(comparison_dir, "modeling_test_result_comparison.csv"))
+```
+
+```{r model-performance-plot, fig.width=10, fig.height=6}
+if (nrow(modeling_comparison) > 0) {
+  model_performance_plot <- modeling_comparison |>
+    ggplot(aes(x = model, y = f1_micro, fill = dataset)) +
+    geom_col(position = "dodge") +
+    labs(
+      title = "Test Micro F1 by Dataset and Model",
+      x = "Model",
+      y = "Test micro F1"
+    ) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 25, hjust = 1))
+
+  model_performance_plot
+
+  ggsave(
+    filename = file.path(comparison_dir, "test_micro_f1_comparison.png"),
+    plot = model_performance_plot,
+    width = 10,
+    height = 6
+  )
+}
+```
+
+# Dataset Recommendation
+
+```{r dataset-recommendation}
+best_processed_dataset <- summary_comparison |>
+  mutate(
+    modeling_readiness_score =
+      profiles +
+      profiles_with_skills +
+      unique(skill_coverage$unique_skills[match(dataset, skill_coverage$dataset)])
+  ) |>
+  arrange(desc(modeling_readiness_score))
+
+best_processed_dataset
+
+best_modeling_result <- modeling_comparison |>
+  arrange(desc(f1_micro)) |>
+  slice_head(n = 1)
+
+best_modeling_result
+```
+
+## Recommendation
+
+Based on the processed-data comparison, the **5k dataset is the better dataset
+to use for the final modeling pipeline**. It has many more profiles, more
+training examples with skill labels, broader label coverage, and stronger held
+out model performance in the current runs.
+
+The **500 dataset is still useful** for quick testing, debugging, and classroom
+demonstration because it runs much faster. However, for the final CP8 modeling
+result, the 5k dataset provides the stronger foundation.

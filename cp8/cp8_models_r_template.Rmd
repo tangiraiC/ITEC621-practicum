@@ -1,0 +1,365 @@
+---
+title: "CP8 Modeling Notebook Template for Question B"
+author: "Lincoln Chanakira"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+# Overview
+
+This notebook provides an R Markdown template for evaluating four candidate models for **Question B: Skills Extraction** using the team's prepared **training, validation, and test** splits. This aligns with the CP7 expectation that data be partitioned into held-out sets for modeling and evaluation, and with the CP8 requirement to compare multiple candidate models on validation or test data. fileciteturn1file0 fileciteturn1file1
+
+The models included are:
+
+1. **Regularized Logistic Regression**
+2. **XGBoost**
+3. **Feature-Enhanced Model (TF-IDF + derived document features)**
+4. **kNN** *(optional)*
+
+**Important note:** the uploaded split files appear to contain a wide feature matrix plus an identifier column, but they do not expose an obvious target label in the version I inspected. Before running this notebook, set `target_col` to the actual binary skill label you want to predict.
+
+# Required packages
+
+```{r packages}
+required_packages <- c(
+  "readr", "dplyr", "Matrix", "glmnet", "xgboost", "class", "pROC"
+)
+
+missing_pkgs <- required_packages[!sapply(required_packages, requireNamespace, quietly = TRUE)]
+if (length(missing_pkgs) > 0) {
+  install.packages(missing_pkgs, repos='https://cran.rstudio.com/')
+}
+
+library(readr)
+library(dplyr)
+library(Matrix)
+library(glmnet)
+library(xgboost)
+library(class)
+library(pROC)
+```
+
+# Load split data
+
+Place this `.Rmd` file in the same folder as:
+- `train_data.csv`
+- `validation_data.csv`
+- `test_data.csv`
+
+```{r load-data}
+train_path <- "../data/Train, Test, and Validation /train_data.csv"
+valid_path <- "../data/Train, Test, and Validation /validation_data.csv"
+test_path  <- "../data/Train, Test, and Validation /test_data.csv"
+
+train_df <- read_csv(train_path, show_col_types = FALSE)
+valid_df <- read_csv(valid_path, show_col_types = FALSE)
+test_df  <- read_csv(test_path, show_col_types = FALSE)
+
+cat("Train shape:", dim(train_df), "\n")
+cat("Validation shape:", dim(valid_df), "\n")
+cat("Test shape:", dim(test_df), "\n")
+```
+
+# User settings
+
+Replace `YOUR_LABEL_HERE` with the actual skill label column you want to model.
+
+Examples:
+- `python`
+- `sql`
+- `machine_learning`
+
+```{r user-settings}
+target_col <- "data_analysis"
+id_cols <- c("linkedinUrl")
+
+if (!(target_col %in% names(train_df))) {
+  stop(
+    paste0(
+      "target_col='", target_col, "' was not found in train_df. ",
+      "Set target_col to an actual binary label column before running this notebook."
+    )
+  )
+}
+```
+
+# Basic validation and alignment
+
+```{r validation}
+common_cols <- Reduce(intersect, list(names(train_df), names(valid_df), names(test_df)))
+train_df <- train_df[, common_cols]
+valid_df <- valid_df[, common_cols]
+test_df  <- test_df[, common_cols]
+
+train_df <- train_df %>% filter(!is.na(.data[[target_col]]))
+valid_df <- valid_df %>% filter(!is.na(.data[[target_col]]))
+test_df  <- test_df %>% filter(!is.na(.data[[target_col]]))
+
+train_df[[target_col]] <- as.integer(train_df[[target_col]])
+valid_df[[target_col]] <- as.integer(valid_df[[target_col]])
+test_df[[target_col]]  <- as.integer(test_df[[target_col]])
+
+predictor_cols <- setdiff(common_cols, c(id_cols, target_col))
+
+cat("Number of predictors:", length(predictor_cols), "\n")
+cat("Positive rate (train):", round(mean(train_df[[target_col]]), 4), "\n")
+cat("Positive rate (validation):", round(mean(valid_df[[target_col]]), 4), "\n")
+cat("Positive rate (test):", round(mean(test_df[[target_col]]), 4), "\n")
+```
+
+# Helper functions
+
+```{r helpers}
+calc_metrics <- function(actual, prob, threshold = 0.5) {
+  pred <- ifelse(prob >= threshold, 1, 0)
+  tp <- sum(pred == 1 & actual == 1)
+  tn <- sum(pred == 0 & actual == 0)
+  fp <- sum(pred == 1 & actual == 0)
+  fn <- sum(pred == 0 & actual == 1)
+
+  precision <- ifelse(tp + fp == 0, NA, tp / (tp + fp))
+  recall    <- ifelse(tp + fn == 0, NA, tp / (tp + fn))
+  f1        <- ifelse(is.na(precision) || is.na(recall) || (precision + recall) == 0,
+                      NA, 2 * precision * recall / (precision + recall))
+  accuracy  <- mean(pred == actual)
+  auc       <- tryCatch(as.numeric(roc(actual, prob, quiet = TRUE)$auc), error = function(e) NA)
+
+  data.frame(
+    threshold = threshold,
+    accuracy = accuracy,
+    precision = precision,
+    recall = recall,
+    f1 = f1,
+    auc = auc,
+    tp = tp,
+    tn = tn,
+    fp = fp,
+    fn = fn
+  )
+}
+
+find_best_threshold <- function(actual, prob, grid = seq(0.10, 0.90, by = 0.05)) {
+  scores <- bind_rows(lapply(grid, function(th) calc_metrics(actual, prob, threshold = th)))
+  scores %>% arrange(desc(f1), desc(recall), desc(precision)) %>% slice(1)
+}
+
+make_sparse_matrix <- function(df, cols) {
+  mat <- as.matrix(df[, cols, drop = FALSE])
+  Matrix(mat, sparse = TRUE)
+}
+```
+
+# Build sparse matrices
+
+```{r sparse-matrices}
+X_train <- make_sparse_matrix(train_df, predictor_cols)
+X_valid <- make_sparse_matrix(valid_df, predictor_cols)
+X_test  <- make_sparse_matrix(test_df, predictor_cols)
+
+y_train <- train_df[[target_col]]
+y_valid <- valid_df[[target_col]]
+y_test  <- test_df[[target_col]]
+```
+
+# Model 1: Regularized Logistic Regression
+
+This is a strong baseline for sparse high-dimensional text features.
+
+```{r logistic-model}
+set.seed(621)
+logit_cv <- cv.glmnet(
+  x = X_train,
+  y = y_train,
+  family = "binomial",
+  alpha = 1,
+  type.measure = "class",
+  nfolds = 5,
+  standardize = TRUE
+)
+
+logit_valid_prob <- as.numeric(predict(logit_cv, newx = X_valid, s = "lambda.min", type = "response"))
+logit_best_th <- find_best_threshold(y_valid, logit_valid_prob)
+logit_test_prob <- as.numeric(predict(logit_cv, newx = X_test, s = "lambda.min", type = "response"))
+logit_test_metrics <- calc_metrics(y_test, logit_test_prob, threshold = logit_best_th$threshold)
+
+logit_test_metrics
+```
+
+# Model 2: XGBoost
+
+This is a strong non-linear model and is often competitive when the feature space is rich.
+
+```{r xgboost-model}
+dtrain <- xgb.DMatrix(data = X_train, label = y_train)
+dvalid <- xgb.DMatrix(data = X_valid, label = y_valid)
+dtest  <- xgb.DMatrix(data = X_test, label = y_test)
+
+xgb_params <- list(
+  objective = "binary:logistic",
+  eval_metric = "auc",
+  eta = 0.05,
+  max_depth = 6,
+  min_child_weight = 1,
+  subsample = 0.8,
+  colsample_bytree = 0.8
+)
+
+xgb_fit <- xgb.train(
+  params = xgb_params,
+  data = dtrain,
+  nrounds = 300,
+  watchlist = list(train = dtrain, valid = dvalid),
+  early_stopping_rounds = 20,
+  verbose = 0
+)
+
+xgb_valid_prob <- predict(xgb_fit, newdata = dvalid)
+xgb_best_th <- find_best_threshold(y_valid, xgb_valid_prob)
+xgb_test_prob <- predict(xgb_fit, newdata = dtest)
+xgb_test_metrics <- calc_metrics(y_test, xgb_test_prob, threshold = xgb_best_th$threshold)
+
+xgb_test_metrics
+```
+
+# Model 3: Feature-Enhanced Model
+
+Because the uploaded split files appear to be feature matrices rather than raw profile records, this notebook derives additional document-level features from the existing predictors.
+
+```{r enhanced-model}
+add_doc_features <- function(df, cols) {
+  x <- as.matrix(df[, cols, drop = FALSE])
+  df %>%
+    mutate(
+      nnz_terms = rowSums(x != 0),
+      tfidf_sum = rowSums(x),
+      tfidf_mean = rowMeans(x),
+      tfidf_max = apply(x, 1, max),
+      tfidf_sd = apply(x, 1, sd)
+    )
+}
+
+train_feat <- add_doc_features(train_df, predictor_cols)
+valid_feat <- add_doc_features(valid_df, predictor_cols)
+test_feat  <- add_doc_features(test_df, predictor_cols)
+
+feature_cols_enhanced <- c(predictor_cols, "nnz_terms", "tfidf_sum", "tfidf_mean", "tfidf_max", "tfidf_sd")
+
+X_train_enh <- make_sparse_matrix(train_feat, feature_cols_enhanced)
+X_valid_enh <- make_sparse_matrix(valid_feat, feature_cols_enhanced)
+X_test_enh  <- make_sparse_matrix(test_feat, feature_cols_enhanced)
+
+enh_cv <- cv.glmnet(
+  x = X_train_enh,
+  y = y_train,
+  family = "binomial",
+  alpha = 0.5,
+  type.measure = "class",
+  nfolds = 5,
+  standardize = TRUE
+)
+
+enh_valid_prob <- as.numeric(predict(enh_cv, newx = X_valid_enh, s = "lambda.min", type = "response"))
+enh_best_th <- find_best_threshold(y_valid, enh_valid_prob)
+enh_test_prob <- as.numeric(predict(enh_cv, newx = X_test_enh, s = "lambda.min", type = "response"))
+enh_test_metrics <- calc_metrics(y_test, enh_test_prob, threshold = enh_best_th$threshold)
+
+enh_test_metrics
+```
+
+# Model 4: kNN (optional)
+
+kNN can be computationally expensive with wide sparse matrices, so this version uses a reduced set of high-variance predictors.
+
+```{r knn-model}
+variance_vec <- apply(train_df[, predictor_cols, drop = FALSE], 2, var)
+top_knn_cols <- names(sort(variance_vec, decreasing = TRUE))[1:min(100, length(variance_vec))]
+
+scale_train <- scale(train_df[, top_knn_cols, drop = FALSE])
+train_center <- attr(scale_train, "scaled:center")
+train_scale  <- attr(scale_train, "scaled:scale")
+train_scale[train_scale == 0] <- 1
+
+scale_valid <- scale(valid_df[, top_knn_cols, drop = FALSE], center = train_center, scale = train_scale)
+scale_test  <- scale(test_df[, top_knn_cols, drop = FALSE], center = train_center, scale = train_scale)
+
+knn_valid_pred <- knn(
+  train = scale_train,
+  test = scale_valid,
+  cl = factor(y_train),
+  k = 5,
+  prob = TRUE
+)
+
+knn_valid_prob <- ifelse(knn_valid_pred == 1,
+                         attr(knn_valid_pred, "prob"),
+                         1 - attr(knn_valid_pred, "prob"))
+knn_best_th <- find_best_threshold(y_valid, knn_valid_prob)
+
+knn_test_pred <- knn(
+  train = scale_train,
+  test = scale_test,
+  cl = factor(y_train),
+  k = 5,
+  prob = TRUE
+)
+knn_test_prob <- ifelse(knn_test_pred == 1,
+                        attr(knn_test_pred, "prob"),
+                        1 - attr(knn_test_pred, "prob"))
+knn_test_metrics <- calc_metrics(y_test, knn_test_prob, threshold = knn_best_th$threshold)
+
+knn_test_metrics
+```
+
+# Compare candidate models
+
+```{r compare-results}
+results <- bind_rows(
+  cbind(model = "Regularized Logistic Regression", logit_test_metrics),
+  cbind(model = "XGBoost", xgb_test_metrics),
+  cbind(model = "Feature-Enhanced Elastic Net", enh_test_metrics),
+  cbind(model = "kNN", knn_test_metrics)
+) %>%
+  arrange(desc(f1), desc(auc), desc(recall))
+
+results
+```
+
+# Export results
+
+```{r export-results}
+write_csv(results, paste0("model_results_", target_col, ".csv"))
+```
+
+# Optional extension: one-vs-rest loop for multiple skills
+
+If your dataset contains multiple binary skill label columns, you can adapt the notebook into a one-vs-rest workflow. A simple template is below.
+
+```{r one-vs-rest-template, eval=FALSE}
+skill_labels <- c("python", "sql", "machine_learning")
+all_skill_results <- list()
+
+for (skill in skill_labels) {
+  message("Running models for label: ", skill)
+  # Wrap the modeling blocks above into a function and call it here.
+}
+```
+
+# Interpretation notes for CP8
+
+When you build your CP8 table, report:
+- the **model name/configuration**
+- the **input feature set**
+- the **primary metric**
+- the **test or validation performance score**
+- whether the model is a **top candidate**
+- any notes on interpretability, computational cost, and limitations
+
+For Question B, **F1-score** is usually the strongest primary metric because it balances precision and recall in a skills extraction setting, which matches the evaluation rationale already described in your CP6 plan. fileciteturn1file2

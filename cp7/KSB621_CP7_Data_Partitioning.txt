@@ -1,0 +1,55 @@
+Details for KSB-621
+Capstone Project (CP7): Data Partitioning
+	•	Due: See Canvas
+	•	Points: 5
+	•	File format: .R, .Rmd, .Qmd, .py, or .ipynb
+	•	Length: N/A
+	•	Submission: Canvas under CP7: Data Partitioning
+	•	Submit file as “CP7_TeamName”
+
+Submit your code file (.R, .Rmd, .Qmd) with thorough comments and notation documenting your data preparation and partitioning approach for the Kogod Career Development LinkedIn profile dataset. The code should be reproducible by the professor.
+
+Context: The Client Dataset
+The data provided by the Kogod Career Development client consists of LinkedIn profiles from Kogod alumni and other business professionals. Each profile may contain fields such as current job title, current job description, previous job titles and descriptions, employer names, and skill listings. The structure and completeness of these fields will vary across profiles.
+
+Your team’s assigned question (confirmed with the professor) will determine which profile fields are most relevant. All three questions share the same general data preparation requirements described below.
+
+Required Data Preparation Steps
+Your submission must address all applicable items below with code and explanatory comments:
+
+1. Dataset Inspection and Scoping
+	•	Load and inspect the LinkedIn profile dataset.
+	•	Identify which fields are relevant to your assigned client question.
+	•	Subset or reshape the data as needed to focus on the relevant unit of analysis (e.g., individual profiles, job descriptions as separate records).
+
+2. Data Quality and Validation
+	•	Check for and document: missing or null values, inconsistent formatting, duplicate profiles or records.
+	•	Apply entity integrity checks (e.g., each profile has a unique identifier) and referential integrity checks (e.g., employer names are consistent where expected).
+	•	Document your resolution strategy for each data quality issue found.
+
+3. Text Preprocessing
+You may not have done text analytics during your program.  The professor will work with you to help support any skill gaps and solution strategies.
+Because the source data consists primarily of unstructured text (job descriptions, titles, skill lists), text preprocessing is central to this assignment. Address as applicable:
+	•	Lowercasing, punctuation handling, and whitespace normalization.
+	•	Tokenization and stopword removal.
+	•	Stemming or lemmatization (if applicable to your modeling approach).
+	•	Handling of special characters, URLs, and LinkedIn-specific formatting artifacts.
+	•	For Question B (Skills Extraction) or Question C (Employer Classification): additional normalization of entity names, skill strings, or employer names as appropriate.
+
+4. Feature Engineering and Variable Creation
+	•	Create new variables or representations needed for modeling.
+	•	For Question C: join or cross-reference the employer field against the top-ranked organizations list provided or sourced by the team.
+	•	Rescale, regroup, or bin variables as needed.
+
+5. Labeling and Ground Truth
+Because the LinkedIn dataset does not include pre-existing model labels, your team must address how ground-truth annotations will be created or sourced:
+	•	Describe the labeling strategy (e.g., manual annotation, rule-based heuristics, use of an LLM as a labeler, reference list matching).
+	•	If annotating manually, document the annotation guidelines and inter-annotator agreement process.
+	•	Produce and include a labeled or pseudo-labeled subset of the data as output of this step.
+
+6. Data Partitioning
+	•	Partition the prepared dataset into training, validation, and test splits.
+	•	Document the partitioning rationale (e.g., 70/15/15 split, stratified sampling by profile type or label class).
+	•	Address any class imbalance issues and your mitigation strategy.
+
+You may optionally provide a rendered markdown output (.docx, .pdf, or .html) to demonstrate the outputs of your data preparation and partitioning work.

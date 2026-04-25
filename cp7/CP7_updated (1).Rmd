@@ -1,0 +1,267 @@
+---
+title: "CP7_The Insight Collective"
+author: "Mekdelawit Dejene"
+date: "2026-04-06"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Part 1: Loading and Checking Data
+# Data Cleaning Pipeline
+# Credit: Lincoln Chankira
+# GitHub: https://github.com/tangiraiC/ITEC621-practicum
+# To reproduce cleaned data: run quarto::quarto_render("datacleaning.qmd") before this script
+
+```{r}
+# loading required packages
+library(readr)
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(tidytext)
+library(SnowballC)
+library(stopwords)
+```
+
+```{r}
+# loading the cleaned data
+exp_clean       <- read.csv("data/processed/cleaned_500_experiences.csv",
+                             stringsAsFactors = FALSE)
+currexp_clean   <- read.csv("data/processed/cleaned_500_current_experiences.csv",
+                             stringsAsFactors = FALSE)
+skills_clean    <- read.csv("data/processed/cleaned_500_skills.csv",
+                             stringsAsFactors = FALSE)
+exp_5k_clean    <- read.csv("data/processed/cleaned_5k_experiences.csv",
+                             stringsAsFactors = FALSE)
+skills_5k_clean <- read.csv("data/processed/cleaned_5k_skills.csv",
+                             stringsAsFactors = FALSE)
+```
+
+# Checking how many rows and columns each file has
+```{r}
+# resource: https://www.w3schools.com/r/r_data_frames.asp
+file_summary <- cbind(
+  File    = c("500 experiences", "500 current experiences", "500 skills",
+              "5k experiences", "5k skills"),
+  Rows    = c(nrow(exp_clean), nrow(currexp_clean), nrow(skills_clean),
+              nrow(exp_5k_clean), nrow(skills_5k_clean)),
+  Columns = c(ncol(exp_clean), ncol(currexp_clean), ncol(skills_clean),
+              ncol(exp_5k_clean), ncol(skills_5k_clean))
+)
+print(file_summary)
+```
+
+# Checking column names and what the data looks like
+```{r}
+# the names of the columns
+names(exp_clean)
+names(exp_5k_clean)
+names(skills_5k_clean)
+```
+
+```{r}
+# to see the structure such as rows, data types and some values
+str(exp_clean)
+str(exp_5k_clean)
+str(skills_5k_clean)
+```
+
+## Part 2: Data Quality and Validation
+
+```{r}
+# finding the total missing values
+sum(is.na(exp_clean))
+sum(is.na(exp_5k_clean))
+sum(is.na(skills_5k_clean))
+```
+
+```{r}
+# checking to see which column has a missing value
+colSums(is.na(exp_clean))
+colSums(is.na(exp_5k_clean))
+
+# most missing values were related to job started or ended on and other columns
+# like industry and company name. Our key columns such as linkedin url and
+# job descriptions have no missing values.
+```
+
+```{r}
+# checking for duplicated linkedin urls
+sum(duplicated(exp_clean$linkedinUrl))
+sum(duplicated(exp_5k_clean$linkedinUrl))
+
+# no duplicates in linkedin
+```
+
+```{r}
+# checking for any missing linkedin url links
+sum(is.na(exp_clean$linkedinUrl))
+sum(is.na(exp_5k_clean$linkedin_url))
+
+# no missing urls
+```
+
+```{r}
+# checking to see how many profiles have job desc in 500 data and 5k data
+sum(!is.na(exp_clean$jobDescription) & exp_clean$jobDescription != "")
+sum(!is.na(exp_5k_clean$current_job_description) &
+      exp_5k_clean$current_job_description != "")
+
+# finding the percentage of what is in the 5k data
+sum(!is.na(exp_5k_clean$current_job_description) &
+      exp_5k_clean$current_job_description != "") / nrow(exp_5k_clean) * 100
+
+# we have 316/452 profiles with job description in 500 data (about 70%)
+# and 2050/5865 in 5k data (about 35%)
+# we will use the 500 dataset for text preprocessing since it has better coverage
+```
+
+## Part 3: Text Preprocessing
+# Resource: Professor's Module 1 - Text Preprocessing for NLP (KSB-621)
+# Following the tidytext approach from the instructional guide
+
+```{r}
+# prepare the job descriptions as a data frame
+# this follows the professor's guide structure - one row per profile
+job_text <- exp_clean |>
+  select(linkedinUrl, jobDescription) |>
+  filter(!is.na(jobDescription) & jobDescription != "") |>
+  mutate(line_id = row_number())
+
+cat("Profiles with job descriptions:", nrow(job_text), "\n")
+
+# check what raw text looks like before cleaning
+cat("\nBefore cleaning:\n")
+cat(job_text$jobDescription[1], "\n")
+```
+
+```{r}
+# Step 1: Normalization
+# Following professor's guide Step 1 - str_to_lower() and str_remove_all()
+# str_to_lower() converts all text to lowercase
+# str_remove_all() removes punctuation and special characters
+# str_squish() removes extra whitespace
+
+job_text <- job_text |>
+  mutate(
+    # lowercase everything
+    text_lower = str_to_lower(jobDescription),
+    # remove anything that is not a letter or space
+    # also remove LinkedIn artifacts like \n and \t
+    text_clean = str_remove_all(text_lower, "[^a-zA-Z\\s]"),
+    text_clean = str_remove_all(text_clean, "\\\\n|\\\\t|\\\\r"),
+    # remove extra whitespace
+    text_clean = str_squish(text_clean)
+  )
+
+# check what cleaned text looks like
+cat("After normalization:\n")
+cat(job_text$text_clean[1], "\n")
+```
+
+```{r}
+# Step 2: Tokenization
+# Following professor's guide Step 2 - unnest_tokens()
+# unnest_tokens() splits text into one word per row
+# it also automatically lowercases and removes punctuation
+
+job_words <- job_text |>
+  unnest_tokens(output = word, input = text_clean, token = "words")
+
+cat("Total tokens:", nrow(job_words), "\n")
+cat("Average tokens per profile:", round(nrow(job_words) / nrow(job_text), 1), "\n")
+
+# see what the top words look like before stopword removal
+job_words |>
+  count(word, sort = TRUE) |>
+  head(20)
+```
+
+```{r}
+# Step 3: Stopword Removal
+# Following professor's guide Step 3 - get_stopwords() and anti_join()
+# Stopwords are common words like "the" "and" "for" that carry no skill meaning
+# get_stopwords() from the stopwords package uses the snowball list
+
+stopwords_en <- get_stopwords(language = "en", source = "snowball")
+
+job_words_clean <- job_words |>
+  anti_join(stopwords_en, by = "word") |>
+  # also remove very short tokens - usually artifacts
+  filter(str_length(word) > 2) |>
+  # remove tokens that are entirely numeric
+  filter(!str_detect(word, "^[0-9]+$"))
+
+cat("Tokens after stopword removal:", nrow(job_words_clean), "\n")
+
+# top words after stopword removal
+job_words_clean |>
+  count(word, sort = TRUE) |>
+  head(20)
+```
+
+```{r}
+# Step 4: Stemming
+# Following professor's guide Step 4 - wordStem() from SnowballC
+# Stemming reduces words to their root form
+# e.g. "managing" "manager" "management" all become "manag"
+# This helps the model recognize the same skill written different ways
+
+job_words_stemmed <- job_words_clean |>
+  mutate(word_stem = wordStem(word, language = "english"))
+
+# compare original words vs their stems
+job_words_stemmed |>
+  filter(word != word_stem) |>
+  distinct(word, word_stem) |>
+  head(20)
+
+cat("Unique words before stemming:", n_distinct(job_words_clean$word), "\n")
+cat("Unique stems after stemming: ", n_distinct(job_words_stemmed$word_stem), "\n")
+```
+
+```{r}
+# Step 5: Bigrams (two-word phrases)
+# Following professor's guide Step 5 - unnest_tokens() with token = "ngrams"
+# Skills are often two words e.g. "project management" "data analysis"
+# Single word tokens miss these - bigrams captures two word pairs
+
+job_bigrams <- job_text |>
+  unnest_tokens(output = bigram, input = text_clean,
+                token = "ngrams", n = 2) |>
+  filter(!is.na(bigram))
+
+# remove bigrams where either word is a stopword
+job_bigrams_clean <- job_bigrams |>
+  separate(bigram, into = c("word1", "word2"), sep = " ") |>
+  anti_join(stopwords_en, by = c("word1" = "word")) |>
+  anti_join(stopwords_en, by = c("word2" = "word")) |>
+  unite(bigram, word1, word2, sep = " ")
+
+# top bigrams - these are likely to contain real skills
+job_bigrams_clean |>
+  count(bigram, sort = TRUE) |>
+  head(20)
+```
+
+```{r}
+# Step 6: Complete Pipeline Summary
+# Following professor's guide Step 6 - putting it all together
+# This is the final clean version combining all steps
+
+processed_text <- job_text |>
+  unnest_tokens(output = word, input = text_clean, token = "words") |>
+  anti_join(get_stopwords(source = "snowball"), by = "word") |>
+  filter(str_length(word) > 2) |>
+  filter(!str_detect(word, "^[0-9]+$")) |>
+  mutate(word_stem = wordStem(word, language = "english")) |>
+  count(linkedinUrl, word_stem, sort = TRUE) |>
+  rename(word = word_stem)
+
+cat("Final processed text dimensions:", nrow(processed_text), "rows\n")
+glimpse(processed_text)
+```

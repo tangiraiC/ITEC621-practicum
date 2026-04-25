@@ -1,0 +1,31 @@
+dataset,skills_compare,n
+500 dataset,leadership,118
+500 dataset,microsoft excel,101
+500 dataset,project management,82
+500 dataset,microsoft office,77
+500 dataset,management,71
+500 dataset,strategic planning,69
+500 dataset,customer service,67
+500 dataset,communication,60
+500 dataset,public speaking,59
+500 dataset,financial analysis,52
+500 dataset,marketing,47
+500 dataset,sales,46
+500 dataset,data analysis,45
+500 dataset,finance,44
+500 dataset,microsoft word,43
+5k dataset,leadership,1384
+5k dataset,microsoft excel,1244
+5k dataset,microsoft office,1049
+5k dataset,project management,884
+5k dataset,customer service,848
+5k dataset,management,844
+5k dataset,strategic planning,770
+5k dataset,public speaking,764
+5k dataset,data analysis,661
+5k dataset,communication,647
+5k dataset,financial analysis,585
+5k dataset,microsoft word,576
+5k dataset,marketing,571
+5k dataset,teamwork,565
+5k dataset,research,563

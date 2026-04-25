@@ -1,0 +1,254 @@
+---
+title: "CP8 Data Preparation - 500 Profile Dataset"
+author: "Lincoln Chanakira"
+output: html_document
+---
+
+This notebook loads the raw 500-profile LinkedIn experience and skills datasets,
+creates one model-ready row per profile, and saves the prepared data for
+downstream preprocessing and modeling.
+
+# What This File Does
+
+- Loads the raw 500 experience and skills CSV files.
+- Cleans column names so they are easier to use in R.
+- Combines repeated job columns into profile-level variables.
+- Builds `profile_text` from job titles, descriptions, companies, and industries.
+- Groups each profile's skills into `skills_list`.
+- Joins profile text with skill labels to create `model_ready`.
+- Saves `model_ready_data.rds` and `model_ready_data.csv`.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+# Load Packages
+
+```{r packages}
+library(readr)
+library(dplyr)
+library(stringr)
+library(purrr)
+library(tidyr)
+```
+
+# Set File Paths
+
+```{r file-paths}
+project_root <- normalizePath(file.path("..", "..", ".."))
+raw_dir <- file.path(project_root, "data", "raw")
+processed_dir <- file.path(project_root, "data", "processed")
+
+dir.create(processed_dir, recursive = TRUE, showWarnings = FALSE)
+
+exp_path <- file.path(raw_dir, "LinkedIn_Scrape_500_Experiences_Wide_Full_List.csv")
+skills_path <- file.path(raw_dir, "LinkedIn_Scrape_500_Skills_List.csv")
+
+prepared_csv_path <- file.path(processed_dir, "linkedin_500_prepared.csv")
+prepared_rds_path <- file.path(processed_dir, "linkedin_500_prepared.rds")
+model_ready_csv_path <- file.path(processed_dir, "model_ready_data.csv")
+model_ready_rds_path <- file.path(processed_dir, "model_ready_data.rds")
+```
+
+# Import Raw Data
+
+```{r import-raw-data}
+clean_column_names <- function(data) {
+  names(data) <- names(data) |>
+    str_replace_all("([a-z0-9])([A-Z])", "\\1_\\2") |>
+    str_replace_all("[^A-Za-z0-9]+", "_") |>
+    str_replace_all("_+", "_") |>
+    str_replace_all("^_|_$", "") |>
+    str_to_lower()
+
+  data
+}
+
+exp_raw <- read_csv(exp_path, show_col_types = FALSE) |>
+  clean_column_names()
+
+skills_raw <- read_csv(skills_path, show_col_types = FALSE) |>
+  clean_column_names()
+
+cat("Raw experience rows and columns:", dim(exp_raw), "\n")
+cat("Raw skills rows and columns:", dim(skills_raw), "\n")
+
+glimpse(exp_raw)
+glimpse(skills_raw)
+```
+
+# Helper Functions
+
+```{r helper-functions}
+paste_nonempty <- function(...) {
+  vals <- c(...)
+  vals <- vals[!is.na(vals)]
+  vals <- str_squish(as.character(vals))
+  vals <- vals[vals != ""]
+
+  if (length(vals) == 0) {
+    return(NA_character_)
+  }
+
+  paste(vals, collapse = " ")
+}
+
+paste_columns <- function(data, columns) {
+  if (length(columns) == 0) {
+    return(rep(NA_character_, nrow(data)))
+  }
+
+  pmap_chr(select(data, all_of(columns)), paste_nonempty)
+}
+```
+
+# Identify Wide Experience Columns
+
+```{r identify-wide-columns}
+title_cols <- names(exp_raw)[str_detect(names(exp_raw), "^title_\\d+$")]
+desc_cols <- names(exp_raw)[str_detect(names(exp_raw), "^job_description_\\d+$")]
+comp_cols <- names(exp_raw)[str_detect(names(exp_raw), "^company_name_\\d+$")]
+ind_cols <- names(exp_raw)[str_detect(names(exp_raw), "^company_industry_\\d+$")]
+ctry_cols <- names(exp_raw)[str_detect(names(exp_raw), "^job_location_country_\\d+$")]
+
+previous_title_cols <- setdiff(title_cols, "title_1")
+previous_desc_cols <- setdiff(desc_cols, "job_description_1")
+previous_ind_cols <- setdiff(ind_cols, "company_industry_1")
+previous_ctry_cols <- setdiff(ctry_cols, "job_location_country_1")
+
+cat("Title columns found:", length(title_cols), "\n")
+cat("Description columns found:", length(desc_cols), "\n")
+cat("Company columns found:", length(comp_cols), "\n")
+cat("Industry columns found:", length(ind_cols), "\n")
+cat("Country columns found:", length(ctry_cols), "\n")
+```
+
+# Prepare Profile-Level Experience Data
+
+```{r prepare-experience-data}
+exp_prepared <- exp_raw |>
+  mutate(
+    current_job_title = title_1,
+    current_job_description = job_description_1,
+    current_company_name = company_name_1,
+    current_job_industry = company_industry_1,
+    current_job_country = job_location_country_1,
+    previous_job_title = paste_columns(cur_data(), previous_title_cols),
+    previous_job_description = paste_columns(cur_data(), previous_desc_cols),
+    previous_job_country = paste_columns(cur_data(), previous_ctry_cols),
+    previous_job_industry = paste_columns(cur_data(), previous_ind_cols),
+    all_titles = paste_columns(cur_data(), title_cols),
+    all_descriptions = paste_columns(cur_data(), desc_cols),
+    all_companies = paste_columns(cur_data(), comp_cols),
+    all_industries = paste_columns(cur_data(), ind_cols),
+    total_experience_count = rowSums(
+      !is.na(select(cur_data(), all_of(title_cols))) &
+        select(cur_data(), all_of(title_cols)) != ""
+    ),
+    has_current_job_description = if_else(
+      !is.na(current_job_description) & str_squish(current_job_description) != "",
+      1L,
+      0L
+    ),
+    has_previous_job_description = if_else(
+      !is.na(previous_job_description) & str_squish(previous_job_description) != "",
+      1L,
+      0L
+    ),
+    profile_text = pmap_chr(
+      list(all_titles, all_descriptions, all_companies, all_industries),
+      paste_nonempty
+    )
+  ) |>
+  transmute(
+    linkedin_url,
+    current_job_title,
+    current_job_description,
+    current_company_name,
+    current_job_industry,
+    current_job_country,
+    previous_job_title,
+    previous_job_description,
+    previous_job_country,
+    previous_job_industry,
+    total_experience_count,
+    has_current_job_description,
+    has_previous_job_description,
+    profile_text
+  )
+
+cat("Prepared experience rows and columns:", dim(exp_prepared), "\n")
+glimpse(exp_prepared)
+```
+
+# Prepare Skills Ground Truth
+
+```{r prepare-skills-data}
+skills_prepared <- skills_raw |>
+  mutate(
+    linkedin_url = str_squish(linkedin_url),
+    skill = str_squish(str_to_lower(skill))
+  ) |>
+  filter(!is.na(linkedin_url), linkedin_url != "", !is.na(skill), skill != "") |>
+  distinct(linkedin_url, skill) |>
+  group_by(linkedin_url) |>
+  summarise(
+    skills_list = list(sort(unique(skill))),
+    skills = paste(sort(unique(skill)), collapse = ", "),
+    skill_count = n_distinct(skill),
+    .groups = "drop"
+  )
+
+cat("Prepared skills rows and columns:", dim(skills_prepared), "\n")
+glimpse(skills_prepared)
+```
+
+# Merge Experience and Skills Data
+
+```{r merge-profile-and-skills-data}
+model_ready <- exp_prepared |>
+  left_join(skills_prepared, by = "linkedin_url") |>
+  mutate(
+    skills_list = map(skills_list, ~ if (is.null(.x) || length(.x) == 0) character(0) else .x),
+    skills = replace_na(skills, ""),
+    skill_count = replace_na(skill_count, 0L),
+    has_any_skill = if_else(skill_count > 0, 1L, 0L)
+  ) |>
+  filter(!is.na(profile_text), str_squish(profile_text) != "") |>
+  distinct(linkedin_url, .keep_all = TRUE)
+
+cat("Model-ready rows and columns:", dim(model_ready), "\n")
+glimpse(model_ready)
+```
+
+# Quality Checks
+
+```{r quality-checks}
+model_ready |>
+  summarise(
+    total_profiles = n(),
+    profiles_with_skills = sum(has_any_skill),
+    avg_skill_count = mean(skill_count),
+    median_skill_count = median(skill_count),
+    avg_experience_count = mean(total_experience_count)
+  )
+
+model_ready |>
+  count(skill_count, sort = TRUE) |>
+  head(10)
+```
+
+# Save Prepared Dataset
+
+```{r save-prepared-data}
+write_rds(model_ready, prepared_rds_path)
+write_csv(model_ready |> select(-skills_list), prepared_csv_path)
+
+write_rds(model_ready, model_ready_rds_path)
+write_csv(model_ready |> select(-skills_list), model_ready_csv_path)
+
+cat("Prepared CSV saved to:", prepared_csv_path, "\n")
+cat("Prepared RDS saved to:", prepared_rds_path, "\n")
+cat("Model-ready CSV saved to:", model_ready_csv_path, "\n")
+cat("Model-ready RDS saved to:", model_ready_rds_path, "\n")
+```

@@ -1,0 +1,260 @@
+---
+title: "5k Model: One-vs-Rest Logistic Regression"
+author: "Team"
+output: html_document
+---
+
+This notebook trains and evaluates the one-vs-rest logistic regression model for
+the 5k LinkedIn skills extraction dataset.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+library(dplyr)
+library(tibble)
+library(glmnet)
+```
+
+# Load Encoded 5k Inputs
+
+```{r load-data}
+project_root <- normalizePath(file.path("..", "..", "..", ".."))
+split_input_path <- file.path(project_root, "data", "processed", "train_validation_test_split.rds")
+
+split_objects <- readRDS(split_input_path)
+
+X_train <- split_objects$X_train
+X_validation <- split_objects$X_validation
+X_test <- split_objects$X_test
+
+y_train <- as.matrix(split_objects$y_train)
+y_validation <- as.matrix(split_objects$y_validation)
+y_test <- as.matrix(split_objects$y_test)
+
+retained_skills <- split_objects$retained_skills
+
+cat("X_train dimensions:", dim(X_train), "\n")
+cat("X_validation dimensions:", dim(X_validation), "\n")
+cat("X_test dimensions:", dim(X_test), "\n")
+cat("y_train dimensions:", dim(y_train), "\n")
+cat("y_validation dimensions:", dim(y_validation), "\n")
+cat("y_test dimensions:", dim(y_test), "\n")
+```
+
+# Modeling Scope
+
+```{r modeling-scope}
+max_model_labels <- 25
+
+label_prevalence <- colMeans(y_train)
+label_order <- order(label_prevalence, decreasing = TRUE)
+selected_label_indices <- label_order[seq_len(min(max_model_labels, length(label_order)))]
+
+y_train <- y_train[, selected_label_indices, drop = FALSE]
+y_validation <- y_validation[, selected_label_indices, drop = FALSE]
+y_test <- y_test[, selected_label_indices, drop = FALSE]
+retained_skills <- colnames(y_train)
+
+cat("Modeled labels:", ncol(y_train), "\n")
+print(retained_skills)
+```
+
+# Helper Functions
+
+```{r helper-functions}
+safe_divide <- function(num, den) {
+  ifelse(den == 0, 0, num / den)
+}
+
+evaluate_multilabel <- function(y_true, y_pred_binary) {
+  y_true <- as.matrix(y_true)
+  y_pred_binary <- as.matrix(y_pred_binary)
+
+  tp_micro <- sum((y_true == 1) & (y_pred_binary == 1))
+  fp_micro <- sum((y_true == 0) & (y_pred_binary == 1))
+  fn_micro <- sum((y_true == 1) & (y_pred_binary == 0))
+
+  precision_micro <- safe_divide(tp_micro, tp_micro + fp_micro)
+  recall_micro <- safe_divide(tp_micro, tp_micro + fn_micro)
+  f1_micro <- safe_divide(2 * precision_micro * recall_micro, precision_micro + recall_micro)
+
+  precision_by_label <- numeric(ncol(y_true))
+  recall_by_label <- numeric(ncol(y_true))
+  f1_by_label <- numeric(ncol(y_true))
+
+  for (j in seq_len(ncol(y_true))) {
+    tp <- sum((y_true[, j] == 1) & (y_pred_binary[, j] == 1))
+    fp <- sum((y_true[, j] == 0) & (y_pred_binary[, j] == 1))
+    fn <- sum((y_true[, j] == 1) & (y_pred_binary[, j] == 0))
+
+    p <- safe_divide(tp, tp + fp)
+    r <- safe_divide(tp, tp + fn)
+    f <- safe_divide(2 * p * r, p + r)
+
+    precision_by_label[j] <- p
+    recall_by_label[j] <- r
+    f1_by_label[j] <- f
+  }
+
+  tibble(
+    precision_micro = precision_micro,
+    recall_micro = recall_micro,
+    f1_micro = f1_micro,
+    precision_macro = mean(precision_by_label, na.rm = TRUE),
+    recall_macro = mean(recall_by_label, na.rm = TRUE),
+    f1_macro = mean(f1_by_label, na.rm = TRUE)
+  )
+}
+
+predict_binary_from_probs <- function(prob_matrix, threshold = 0.50) {
+  prob_matrix <- as.matrix(prob_matrix)
+
+  if (length(threshold) == 1) {
+    return(ifelse(prob_matrix >= threshold, 1L, 0L))
+  }
+
+  threshold_matrix <- matrix(
+    rep(threshold, each = nrow(prob_matrix)),
+    nrow = nrow(prob_matrix),
+    byrow = FALSE
+  )
+
+  ifelse(prob_matrix >= threshold_matrix, 1L, 0L)
+}
+
+has_two_classes <- function(y) {
+  length(unique(y)) == 2
+}
+
+tune_label_thresholds <- function(y_true, prob_matrix, grid = seq(0.05, 0.95, by = 0.05)) {
+  y_true <- as.matrix(y_true)
+  prob_matrix <- as.matrix(prob_matrix)
+  thresholds <- rep(0.50, ncol(y_true))
+  names(thresholds) <- colnames(y_true)
+
+  for (j in seq_len(ncol(y_true))) {
+    if (sum(y_true[, j] == 1) == 0) {
+      next
+    }
+
+    scores <- sapply(grid, function(threshold) {
+      pred <- ifelse(prob_matrix[, j] >= threshold, 1L, 0L)
+      tp <- sum((y_true[, j] == 1) & (pred == 1))
+      fp <- sum((y_true[, j] == 0) & (pred == 1))
+      fn <- sum((y_true[, j] == 1) & (pred == 0))
+      precision <- safe_divide(tp, tp + fp)
+      recall <- safe_divide(tp, tp + fn)
+      safe_divide(2 * precision * recall, precision + recall)
+    })
+
+    thresholds[j] <- grid[which.max(scores)]
+  }
+
+  thresholds
+}
+```
+
+# Train Logistic Regression
+
+```{r train-logistic-regression}
+set.seed(621)
+
+logit_models <- vector("list", ncol(y_train))
+logit_validation_probs <- matrix(0, nrow = nrow(X_validation), ncol = ncol(y_train))
+logit_test_probs <- matrix(0, nrow = nrow(X_test), ncol = ncol(y_train))
+
+for (j in seq_len(ncol(y_train))) {
+  y_j <- y_train[, j]
+  class_counts <- table(factor(y_j, levels = c(0, 1)))
+  min_class_count <- min(class_counts)
+
+  if (has_two_classes(y_j) && min_class_count >= 2) {
+    if (min_class_count >= 3) {
+      model_j <- cv.glmnet(
+        x = X_train,
+        y = y_j,
+        family = "binomial",
+        alpha = 0,
+        type.measure = "class",
+        nfolds = min(5, min_class_count)
+      )
+
+      logit_validation_probs[, j] <- as.numeric(
+        predict(model_j, newx = X_validation, s = "lambda.min", type = "response")
+      )
+
+      logit_test_probs[, j] <- as.numeric(
+        predict(model_j, newx = X_test, s = "lambda.min", type = "response")
+      )
+    } else {
+      model_j <- glmnet(
+        x = X_train,
+        y = y_j,
+        family = "binomial",
+        alpha = 0,
+        lambda = 0.01
+      )
+
+      logit_validation_probs[, j] <- as.numeric(
+        predict(model_j, newx = X_validation, s = 0.01, type = "response")
+      )
+
+      logit_test_probs[, j] <- as.numeric(
+        predict(model_j, newx = X_test, s = 0.01, type = "response")
+      )
+    }
+
+    logit_models[[j]] <- model_j
+  } else {
+    logit_validation_probs[, j] <- mean(y_j)
+    logit_test_probs[, j] <- mean(y_j)
+  }
+}
+
+colnames(logit_validation_probs) <- colnames(y_train)
+colnames(logit_test_probs) <- colnames(y_train)
+
+logit_thresholds <- tune_label_thresholds(y_validation, logit_validation_probs)
+
+logit_pred_validation <- predict_binary_from_probs(
+  logit_validation_probs,
+  threshold = logit_thresholds
+)
+
+logit_pred_test <- predict_binary_from_probs(
+  logit_test_probs,
+  threshold = logit_thresholds
+)
+
+logit_validation_metrics <- evaluate_multilabel(y_validation, logit_pred_validation)
+logit_test_metrics <- evaluate_multilabel(y_test, logit_pred_test)
+
+logit_validation_metrics
+logit_test_metrics
+```
+
+# Save Outputs
+
+```{r save-outputs}
+model_output_dir <- file.path(project_root, "data", "processed", "5k_model_outputs", "logistic_regression")
+dir.create(model_output_dir, recursive = TRUE, showWarnings = FALSE)
+
+logit_results <- list(
+  model = "Logistic Regression",
+  validation_metrics = logit_validation_metrics,
+  test_metrics = logit_test_metrics,
+  thresholds = logit_thresholds,
+  models = logit_models,
+  validation_probabilities = logit_validation_probs,
+  test_probabilities = logit_test_probs,
+  validation_predictions = logit_pred_validation,
+  test_predictions = logit_pred_test,
+  retained_skills = retained_skills
+)
+
+saveRDS(logit_results, file.path(model_output_dir, "logistic_regression_5k_results.rds"))
+write.csv(logit_validation_metrics, file.path(model_output_dir, "validation_metrics.csv"), row.names = FALSE)
+write.csv(logit_test_metrics, file.path(model_output_dir, "test_metrics.csv"), row.names = FALSE)
+
+cat("Logistic regression outputs saved to:", model_output_dir, "\n")
+```

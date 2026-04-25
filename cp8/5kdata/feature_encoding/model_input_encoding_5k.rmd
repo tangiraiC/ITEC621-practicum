@@ -1,0 +1,312 @@
+---
+title: "CP8 Model Input Encoding"
+author: "Lincoln Chanakira"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+# Load Packages
+
+```{r packages}
+library(readr)
+library(dplyr)
+library(stringr)
+library(tidyr)
+library(tibble)
+library(purrr)
+library(tidytext)
+library(text2vec)
+library(Matrix)
+library(caret)
+```
+
+# Import Preprocessed Dataset
+
+```{r import-preprocessed-data}
+preprocessed_input_path <- "../../../data/processed/linkedin_full_5865_preprocessed.csv"
+
+linkedin_preprocessed <- read_csv(preprocessed_input_path, show_col_types = FALSE)
+
+cat("Preprocessed dataset shape:", dim(linkedin_preprocessed), "\n")
+glimpse(linkedin_preprocessed)
+head(linkedin_preprocessed)
+```
+
+# Helper Functions
+
+```{r helper-functions}
+clean_text_for_tfidf <- function(x) {
+  x <- ifelse(is.na(x), "", as.character(x))
+  x <- tolower(x)
+  x <- gsub("[\r\n\t]+", " ", x)
+  x <- gsub("[[:punct:]]+", " ", x)
+  x <- gsub("[[:digit:]]+", " ", x)
+  x <- gsub("\\s+", " ", x)
+  trimws(x)
+}
+
+parse_skills_list <- function(x) {
+  x <- ifelse(is.na(x), "", as.character(x))
+  x <- trimws(x)
+
+  if (length(x) == 0 || x == "" || x %in% c("character(0)", "list()", "[]", "NA")) {
+    return(character(0))
+  }
+
+  x <- gsub("^c\\(", "", x)
+  x <- gsub("\\)$", "", x)
+  x <- gsub("^\\[|\\]$", "", x)
+  x <- gsub("'", "", x)
+  x <- gsub("\"", "", x)
+  x <- gsub("\\s*[,;|]\\s*", ",", x)
+
+  parts <- unlist(strsplit(x, ","))
+  parts <- trimws(parts)
+  parts <- tolower(parts)
+  parts <- parts[parts != ""]
+  unique(parts)
+}
+```
+
+# Clean Text and Parse Skills
+
+```{r clean-text-and-parse-skills}
+linkedin_encoded <- linkedin_preprocessed |>
+  mutate(
+    profile_text = clean_text_for_tfidf(profile_text),
+    parsed_skills = map(skills_list, parse_skills_list)
+  )
+
+linkedin_encoded |>
+  select(profile_text, skills_list, parsed_skills, skill_count) |>
+  head()
+```
+
+# Build Skill Vocabulary
+
+```{r build-skill-vocabulary}
+skill_frequency <- linkedin_encoded |>
+  select(parsed_skills) |>
+  unnest(parsed_skills) |>
+  count(parsed_skills, sort = TRUE, name = "frequency")
+
+cat("Total unique skills before filtering:", nrow(skill_frequency), "\n")
+head(skill_frequency, 20)
+```
+
+# Filter Rare Skills
+
+```{r filter-rare-skills}
+min_skill_frequency <- 10
+
+retained_skills <- skill_frequency |>
+  filter(frequency >= min_skill_frequency) |>
+  pull(parsed_skills)
+
+cat("Number of retained skills:", length(retained_skills), "\n")
+
+linkedin_encoded <- linkedin_encoded |>
+  mutate(
+    retained_skill_list = map(parsed_skills, ~ .x[.x %in% retained_skills]),
+    retained_skill_count = map_int(retained_skill_list, length)
+  )
+
+linkedin_encoded |>
+  summarise(
+    total_profiles = n(),
+    profiles_with_any_retained_skill = sum(retained_skill_count > 0),
+    avg_retained_skill_count = mean(retained_skill_count),
+    median_retained_skill_count = median(retained_skill_count)
+  )
+```
+
+# Create Multi-Label Target Matrix
+
+```{r create-target-matrix}
+n_rows <- nrow(linkedin_encoded)
+n_skills <- length(retained_skills)
+
+y_matrix <- matrix(0L, nrow = n_rows, ncol = n_skills)
+colnames(y_matrix) <- retained_skills
+
+for (i in seq_len(n_rows)) {
+  skills_i <- linkedin_encoded$retained_skill_list[[i]]
+
+  if (length(skills_i) > 0) {
+    matched_cols <- match(skills_i, colnames(y_matrix))
+    matched_cols <- matched_cols[!is.na(matched_cols)]
+
+    if (length(matched_cols) > 0) {
+      y_matrix[i, matched_cols] <- 1L
+    }
+  }
+}
+
+y_df <- as_tibble(y_matrix)
+
+cat("Target matrix dimensions:", dim(y_matrix), "\n")
+y_df |>
+  select(1:min(10, ncol(y_df))) |>
+  head()
+```
+
+# Build TF-IDF Matrix from Profile Text
+
+```{r build-tfidf-matrix}
+stop_words_vector <- tidytext::stop_words$word
+
+tokens_iterator <- itoken(
+  linkedin_encoded$profile_text,
+  tokenizer = word_tokenizer,
+  progressbar = FALSE
+)
+
+vocabulary <- create_vocabulary(
+  tokens_iterator,
+  ngram = c(1L, 2L),
+  stopwords = stop_words_vector
+)
+
+vocabulary <- prune_vocabulary(
+  vocabulary,
+  term_count_min = 5,
+  doc_proportion_max = 0.95
+)
+
+vectorizer <- vocab_vectorizer(vocabulary)
+
+tokens_iterator <- itoken(
+  linkedin_encoded$profile_text,
+  tokenizer = word_tokenizer,
+  progressbar = FALSE
+)
+
+dtm <- create_dtm(tokens_iterator, vectorizer)
+
+tfidf_transformer <- TfIdf$new()
+tfidf_matrix <- fit_transform(dtm, tfidf_transformer)
+
+max_features <- 5000
+
+if (ncol(tfidf_matrix) > max_features) {
+  term_scores <- colSums(tfidf_matrix)
+  top_term_indices <- order(term_scores, decreasing = TRUE)[1:max_features]
+  tfidf_matrix <- tfidf_matrix[, top_term_indices]
+}
+
+cat("TF-IDF matrix dimensions:", dim(tfidf_matrix), "\n")
+```
+
+# Align Inputs and Targets
+
+```{r align-inputs-targets}
+stopifnot(nrow(tfidf_matrix) == nrow(y_df))
+
+cat("Rows in TF-IDF matrix:", nrow(tfidf_matrix), "\n")
+cat("Rows in target matrix:", nrow(y_df), "\n")
+```
+
+# Create 70/15/15 Train-Validation-Test Split
+
+```{r create-train-validation-test-split}
+set.seed(42)
+
+train_index <- createDataPartition(
+  linkedin_encoded$retained_skill_count > 0,
+  p = 0.70,
+  list = FALSE
+)
+
+train_profiles <- linkedin_encoded[train_index, ]
+temp_profiles <- linkedin_encoded[-train_index, ]
+
+X_train <- tfidf_matrix[train_index, ]
+y_train <- y_df[train_index, ]
+
+X_temp <- tfidf_matrix[-train_index, ]
+y_temp <- y_df[-train_index, ]
+
+set.seed(42)
+
+temp_index <- createDataPartition(
+  temp_profiles$retained_skill_count > 0,
+  p = 0.50,
+  list = FALSE
+)
+
+validation_profiles <- temp_profiles[temp_index, ]
+test_profiles <- temp_profiles[-temp_index, ]
+
+X_validation <- X_temp[temp_index, ]
+X_test <- X_temp[-temp_index, ]
+
+y_validation <- y_temp[temp_index, ]
+y_test <- y_temp[-temp_index, ]
+
+cat("Training set size:", nrow(X_train), "\n")
+cat("Validation set size:", nrow(X_validation), "\n")
+cat("Test set size:", nrow(X_test), "\n")
+cat("Training target dimensions:", dim(y_train), "\n")
+cat("Validation target dimensions:", dim(y_validation), "\n")
+cat("Test target dimensions:", dim(y_test), "\n")
+```
+
+# Summary Diagnostics
+
+```{r summary-diagnostics}
+cat("Final encoded dataset summary\n")
+cat("-----------------------------\n")
+cat("Total profiles:", nrow(linkedin_encoded), "\n")
+cat("Retained skills:", length(retained_skills), "\n")
+cat("TF-IDF features:", ncol(tfidf_matrix), "\n")
+cat("Training rows:", nrow(X_train), "\n")
+cat("Validation rows:", nrow(X_validation), "\n")
+cat("Test rows:", nrow(X_test), "\n")
+
+top_retained_skills <- skill_frequency |>
+  filter(parsed_skills %in% retained_skills) |>
+  arrange(desc(frequency))
+
+head(top_retained_skills, 20)
+```
+
+# Save Outputs
+
+```{r save-outputs}
+tfidf_output_path <- "../../../data/processed/linkedin_full_5865_tfidf.rds"
+targets_output_path <- "../../../data/processed/linkedin_full_5865_multilabel_targets.csv"
+split_output_path <- "../../../data/processed/train_validation_test_split.rds"
+
+saveRDS(tfidf_matrix, tfidf_output_path)
+
+targets_to_save <- bind_cols(
+  linkedin_encoded |> select(linkedin_url),
+  y_df
+)
+
+write_csv(targets_to_save, targets_output_path)
+
+split_objects <- list(
+  train_index = train_index,
+  temp_index = temp_index,
+  X_train = X_train,
+  X_validation = X_validation,
+  X_test = X_test,
+  y_train = y_train,
+  y_validation = y_validation,
+  y_test = y_test,
+  train_profiles = train_profiles,
+  validation_profiles = validation_profiles,
+  test_profiles = test_profiles,
+  retained_skills = retained_skills
+)
+
+saveRDS(split_objects, split_output_path)
+
+cat("Saved TF-IDF matrix to:", tfidf_output_path, "\n")
+cat("Saved multi-label targets to:", targets_output_path, "\n")
+cat("Saved train/validation/test split objects to:", split_output_path, "\n")
+```

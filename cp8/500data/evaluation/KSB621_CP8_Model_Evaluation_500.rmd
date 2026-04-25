@@ -1,0 +1,178 @@
+---
+title: "Model Evaluation - 500 Profile Dataset"
+author: "Team"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+library(tidyverse)
+library(yardstick)
+library(here)
+
+project_root <- normalizePath(file.path("..", "..", ".."))
+processed_dir <- file.path(project_root, "data", "processed")
+results_dir <- file.path(project_root, "results")
+
+dir.create(results_dir, recursive = TRUE, showWarnings = FALSE)
+```
+
+# Introduction
+
+In this section, we will evaluate the candidate models using multi-label
+classification metrics and compare their performance on the validation and test
+sets for the 500-profile dataset.
+
+# Load Model Outputs
+
+```{r load-model-outputs}
+y_valid <- read_rds(file.path(processed_dir, "y_valid.rds"))
+y_test <- read_rds(file.path(processed_dir, "y_test.rds"))
+top_skills <- read_rds(file.path(processed_dir, "top_skills.rds"))
+
+glmnet_valid_pred <- read_rds(file.path(results_dir, "glmnet_valid_pred.rds"))
+xgb_valid_pred <- read_rds(file.path(results_dir, "xgb_valid_pred.rds"))
+
+glmnet_test_pred <- read_rds(file.path(results_dir, "glmnet_test_pred.rds"))
+xgb_test_pred <- read_rds(file.path(results_dir, "xgb_test_pred.rds"))
+
+dim(y_valid)
+dim(y_test)
+length(top_skills)
+```
+
+# Metric Helpers
+
+```{r metric-helpers}
+calc_micro_metrics <- function(y_true, y_pred) {
+  y_true_vec <- as.vector(y_true)
+  y_pred_vec <- as.vector(y_pred)
+
+  tp <- sum(y_true_vec == 1 & y_pred_vec == 1)
+  fp <- sum(y_true_vec == 0 & y_pred_vec == 1)
+  fn <- sum(y_true_vec == 1 & y_pred_vec == 0)
+
+  precision <- ifelse(tp + fp == 0, 0, tp / (tp + fp))
+  recall <- ifelse(tp + fn == 0, 0, tp / (tp + fn))
+  f1 <- ifelse(
+    precision + recall == 0,
+    0,
+    2 * precision * recall / (precision + recall)
+  )
+
+  tibble(
+    precision_micro = precision,
+    recall_micro = recall,
+    f1_micro = f1
+  )
+}
+
+calc_macro_f1 <- function(y_true, y_pred, skill_names) {
+  skill_f1 <- map_dbl(seq_along(skill_names), function(j) {
+    yt <- y_true[, j]
+    yp <- y_pred[, j]
+
+    tp <- sum(yt == 1 & yp == 1)
+    fp <- sum(yt == 0 & yp == 1)
+    fn <- sum(yt == 1 & yp == 0)
+
+    precision <- ifelse(tp + fp == 0, 0, tp / (tp + fp))
+    recall <- ifelse(tp + fn == 0, 0, tp / (tp + fn))
+
+    ifelse(
+      precision + recall == 0,
+      0,
+      2 * precision * recall / (precision + recall)
+    )
+  })
+
+  tibble(macro_f1 = mean(skill_f1))
+}
+
+calc_subset_accuracy <- function(y_true, y_pred) {
+  exact_match <- mean(apply(y_true == y_pred, 1, all))
+  tibble(subset_accuracy = exact_match)
+}
+
+evaluate_multilabel <- function(y_true, y_pred, model_name, split_name, skill_names) {
+  bind_cols(
+    tibble(model = model_name, split = split_name),
+    calc_micro_metrics(y_true, y_pred),
+    calc_macro_f1(y_true, y_pred, skill_names),
+    calc_subset_accuracy(y_true, y_pred)
+  )
+}
+```
+
+# Validation Comparison
+
+```{r validation-comparison}
+val_results <- bind_rows(
+  evaluate_multilabel(y_valid, glmnet_valid_pred$class, "GLMNET", "Validation", top_skills),
+  evaluate_multilabel(y_valid, xgb_valid_pred$class, "XGBoost", "Validation", top_skills)
+)
+
+val_results
+```
+
+# Test Comparison
+
+```{r test-comparison}
+test_results <- bind_rows(
+  evaluate_multilabel(y_test, glmnet_test_pred$class, "GLMNET", "Test", top_skills),
+  evaluate_multilabel(y_test, xgb_test_pred$class, "XGBoost", "Test", top_skills)
+)
+
+test_results
+```
+
+# Per-Skill F1
+
+```{r per-skill-f1}
+per_skill_f1 <- function(y_true, y_pred, model_name, split_name, skill_names) {
+  tibble(
+    skill = skill_names,
+    f1 = map_dbl(seq_along(skill_names), function(j) {
+      yt <- y_true[, j]
+      yp <- y_pred[, j]
+
+      tp <- sum(yt == 1 & yp == 1)
+      fp <- sum(yt == 0 & yp == 1)
+      fn <- sum(yt == 1 & yp == 0)
+
+      precision <- ifelse(tp + fp == 0, 0, tp / (tp + fp))
+      recall <- ifelse(tp + fn == 0, 0, tp / (tp + fn))
+
+      ifelse(
+        precision + recall == 0,
+        0,
+        2 * precision * recall / (precision + recall)
+      )
+    }),
+    model = model_name,
+    split = split_name
+  )
+}
+
+per_skill_results <- bind_rows(
+  per_skill_f1(y_test, glmnet_test_pred$class, "GLMNET", "Test", top_skills),
+  per_skill_f1(y_test, xgb_test_pred$class, "XGBoost", "Test", top_skills)
+)
+
+per_skill_results |>
+  arrange(desc(f1)) |>
+  print(n = 20)
+```
+
+# Save Outputs
+
+```{r save-outputs}
+write_csv(val_results, file.path(results_dir, "validation_results.csv"))
+write_csv(test_results, file.path(results_dir, "test_results.csv"))
+write_csv(per_skill_results, file.path(results_dir, "per_skill_results.csv"))
+
+cat("Validation results saved to:", file.path(results_dir, "validation_results.csv"), "\n")
+cat("Test results saved to:", file.path(results_dir, "test_results.csv"), "\n")
+cat("Per-skill results saved to:", file.path(results_dir, "per_skill_results.csv"), "\n")
+```

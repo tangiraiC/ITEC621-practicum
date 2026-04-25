@@ -1,0 +1,38 @@
+[
+  {
+    "label": "leadership_management",
+    "description": "Leading teams, managing people, and overseeing projects",
+    "keywords": "leadership, management, project management",
+    "pattern": "\\b(leadership, management, project management)\\b"
+  },
+  {
+    "label": "data_analysis",
+    "description": "Working with data, analysis, and tools like Excel",
+    "keywords": "data analysis, excel, microsoft excel",
+    "pattern": "\\b(data analysis, excel, microsoft excel)\\b"
+  },
+  {
+    "label": "business_operations",
+    "description": "General business tasks, operations, and office tools",
+    "keywords": "microsoft office, operations",
+    "pattern": "\\b(microsoft office, operations)\\b"
+  },
+  {
+    "label": "customer_relations",
+    "description": "Customer interaction, support, and service roles",
+    "keywords": "customer service, client, customer",
+    "pattern": "\\b(customer service, client, customer)\\b"
+  },
+  {
+    "label": "communication_skills",
+    "description": "Communication, presentations, and speaking skills",
+    "keywords": "communication, public speaking, presentation",
+    "pattern": "\\b(communication, public speaking, presentation)\\b"
+  },
+  {
+    "label": "strategic_planning",
+    "description": "Planning, strategy, and organizational direction",
+    "keywords": "strategic planning, strategy",
+    "pattern": "\\b(strategic planning, strategy)\\b"
+  }
+]
