@@ -124,6 +124,13 @@ make_dataset_summary <- function(df) {
       .groups = "drop"
     )
 }
+
+safe_filename <- function(x) {
+  x |>
+    str_to_lower() |>
+    str_replace_all("[^a-z0-9]+", "_") |>
+    str_replace_all("^_|_$", "")
+}
 ```
 
 # Load and Harmonize Datasets
@@ -296,6 +303,50 @@ ggsave(
   width = 10,
   height = 6
 )
+
+skill_inventory_metric_data <- skill_inventory |>
+  select(dataset, total_number_of_skills, unique_skills) |>
+  pivot_longer(
+    cols = c(total_number_of_skills, unique_skills),
+    names_to = "metric",
+    values_to = "count"
+  ) |>
+  mutate(
+    metric = recode(
+      metric,
+      total_number_of_skills = "Total skill assignments",
+      unique_skills = "Unique skills"
+    )
+  )
+
+skill_inventory_metric_plots <- split(
+  skill_inventory_metric_data,
+  skill_inventory_metric_data$metric
+)
+
+for (metric_name in names(skill_inventory_metric_plots)) {
+  metric_plot <- skill_inventory_metric_plots[[metric_name]] |>
+    ggplot(aes(x = dataset, y = count, fill = dataset)) +
+    geom_col(show.legend = FALSE, width = 0.65) +
+    geom_text(aes(label = comma(count)), vjust = -0.25, size = 3.5) +
+    labs(
+      title = metric_name,
+      subtitle = "5k training data compared with external validation",
+      x = NULL,
+      y = "Count"
+    ) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 15, hjust = 1))
+
+  print(metric_plot)
+
+  ggsave(
+    file.path(eda_dir, paste0("skill_inventory_", safe_filename(metric_name), ".png")),
+    metric_plot,
+    width = 8,
+    height = 5
+  )
+}
 ```
 
 ```{r skills-per-profile-plot, fig.width=11, fig.height=6}
@@ -320,6 +371,30 @@ ggsave(
   width = 11,
   height = 6
 )
+
+for (dataset_name in unique(combined_profiles$dataset)) {
+  dataset_plot <- combined_profiles |>
+    filter(dataset == dataset_name) |>
+    ggplot(aes(x = skill_count)) +
+    geom_histogram(binwidth = 1, alpha = 0.85, boundary = 0, fill = "#174ea6") +
+    scale_x_continuous(breaks = pretty_breaks()) +
+    labs(
+      title = paste("Skills per Profile:", dataset_name),
+      subtitle = "Distribution of multi-label skill counts",
+      x = "Number of skills listed on a profile",
+      y = "Profiles"
+    ) +
+    theme_minimal()
+
+  print(dataset_plot)
+
+  ggsave(
+    file.path(eda_dir, paste0("skills_per_profile_", safe_filename(dataset_name), ".png")),
+    dataset_plot,
+    width = 9,
+    height = 5
+  )
+}
 ```
 
 # Other Important EDA Metrics
@@ -582,6 +657,29 @@ ggsave(
   width = 11,
   height = 6
 )
+
+for (dataset_name in unique(combined_profiles$dataset)) {
+  dataset_plot <- combined_profiles |>
+    filter(dataset == dataset_name) |>
+    ggplot(aes(x = profile_token_count)) +
+    geom_histogram(bins = 45, alpha = 0.85, fill = "#174ea6") +
+    labs(
+      title = paste("Profile Text Length:", dataset_name),
+      subtitle = "Longer text gives TF-IDF models more evidence for skill prediction",
+      x = "Tokens in combined profile text",
+      y = "Profiles"
+    ) +
+    theme_minimal()
+
+  print(dataset_plot)
+
+  ggsave(
+    file.path(eda_dir, paste0("profile_text_token_distribution_", safe_filename(dataset_name), ".png")),
+    dataset_plot,
+    width = 9,
+    height = 5
+  )
+}
 ```
 
 # Skill Label Coverage and Imbalance
@@ -626,6 +724,31 @@ ggsave(
   width = 12,
   height = 8
 )
+
+for (dataset_name in unique(top_skills$dataset)) {
+  dataset_plot <- top_skills |>
+    filter(dataset == dataset_name) |>
+    mutate(skill = fct_reorder(skill, n)) |>
+    ggplot(aes(x = skill, y = n)) +
+    geom_col(fill = "#174ea6") +
+    coord_flip() +
+    labs(
+      title = paste("Top 20 Skill Labels:", dataset_name),
+      subtitle = "Most common labels in this dataset",
+      x = NULL,
+      y = "Profiles with skill"
+    ) +
+    theme_minimal()
+
+  print(dataset_plot)
+
+  ggsave(
+    file.path(eda_dir, paste0("top_20_skills_", safe_filename(dataset_name), ".png")),
+    dataset_plot,
+    width = 9,
+    height = 7
+  )
+}
 ```
 
 ```{r long-tail-skills, fig.width=11, fig.height=6}
@@ -702,6 +825,31 @@ ggsave(
   width = 12,
   height = 8
 )
+
+for (dataset_name in unique(top_terms$dataset)) {
+  dataset_plot <- top_terms |>
+    filter(dataset == dataset_name) |>
+    mutate(term = fct_reorder(term, n)) |>
+    ggplot(aes(x = term, y = n)) +
+    geom_col(fill = "#174ea6") +
+    coord_flip() +
+    labs(
+      title = paste("Most Frequent Profile Text Terms:", dataset_name),
+      subtitle = "Strongest raw text signals before TF-IDF weighting",
+      x = NULL,
+      y = "Term count"
+    ) +
+    theme_minimal()
+
+  print(dataset_plot)
+
+  ggsave(
+    file.path(eda_dir, paste0("top_profile_text_terms_", safe_filename(dataset_name), ".png")),
+    dataset_plot,
+    width = 9,
+    height = 7
+  )
+}
 ```
 
 # Do Skill Labels Appear in Job Description Text?
@@ -839,6 +987,30 @@ ggsave(
   width = 11,
   height = 6
 )
+
+for (dataset_name in unique(combined_profiles$dataset)) {
+  dataset_plot <- combined_profiles |>
+    filter(dataset == dataset_name) |>
+    ggplot(aes(x = profile_token_count, y = skill_count)) +
+    geom_point(alpha = 0.35, color = "#174ea6") +
+    geom_smooth(method = "loess", se = FALSE, color = "#b06000") +
+    labs(
+      title = paste("Text Length vs Skill Count:", dataset_name),
+      subtitle = "More text can expose more skills, but can also introduce noise",
+      x = "Profile text tokens",
+      y = "Skill labels per profile"
+    ) +
+    theme_minimal()
+
+  print(dataset_plot)
+
+  ggsave(
+    file.path(eda_dir, paste0("text_length_vs_skill_count_", safe_filename(dataset_name), ".png")),
+    dataset_plot,
+    width = 9,
+    height = 5
+  )
+}
 ```
 
 # Model-Aware EDA: TF-IDF Vocabulary and Sparsity

@@ -229,7 +229,7 @@ cat(&quot;X_train dimensions:&quot;, dim(X_train), &quot;\n&quot;)</code></pre>
 <p>This block limits the modeling run to the most common skill labels. The full encoded target matrix contains many labels, so this cap keeps the notebook computationally practical while still comparing the requested model types.</p>
 <p><strong>Summary:</strong> This chunk limits modeling to the most frequent skill labels. The cap keeps training computationally manageable and ensures all compared models use the same target set.</p>
 <pre class="r"><code># Select the most frequent labels so the full modeling workflow runs reliably.
-max_model_labels &lt;- 25
+max_model_labels &lt;- 100
 
 label_prevalence &lt;- colMeans(y_train)
 label_order &lt;- order(label_prevalence, decreasing = TRUE)
@@ -241,19 +241,110 @@ y_test &lt;- y_test[, selected_label_indices, drop = FALSE]
 retained_skills &lt;- colnames(y_train)
 
 cat(&quot;Modeled labels:&quot;, ncol(y_train), &quot;\n&quot;)</code></pre>
-<pre><code>## Modeled labels: 25</code></pre>
+<pre><code>## Modeled labels: 100</code></pre>
 <pre class="r"><code>cat(&quot;Top modeled skills:\n&quot;)</code></pre>
 <pre><code>## Top modeled skills:</code></pre>
 <pre class="r"><code>print(retained_skills)</code></pre>
-<pre><code>##  [1] &quot;leadership&quot;         &quot;microsoft excel&quot;    &quot;microsoft office&quot;  
-##  [4] &quot;customer service&quot;   &quot;project management&quot; &quot;management&quot;        
-##  [7] &quot;strategic planning&quot; &quot;public speaking&quot;    &quot;data analysis&quot;     
-## [10] &quot;communication&quot;      &quot;research&quot;           &quot;microsoft word&quot;    
-## [13] &quot;teamwork&quot;           &quot;marketing&quot;          &quot;financial analysis&quot;
-## [16] &quot;social media&quot;       &quot;sales&quot;              &quot;strategy&quot;          
-## [19] &quot;time management&quot;    &quot;team leadership&quot;    &quot;finance&quot;           
-## [22] &quot;business strategy&quot;  &quot;analytical skills&quot;  &quot;marketing strategy&quot;
-## [25] &quot;accounting&quot;</code></pre>
+<pre><code>##   [1] &quot;leadership&quot;                            
+##   [2] &quot;microsoft excel&quot;                       
+##   [3] &quot;microsoft office&quot;                      
+##   [4] &quot;customer service&quot;                      
+##   [5] &quot;project management&quot;                    
+##   [6] &quot;management&quot;                            
+##   [7] &quot;strategic planning&quot;                    
+##   [8] &quot;public speaking&quot;                       
+##   [9] &quot;data analysis&quot;                         
+##  [10] &quot;communication&quot;                         
+##  [11] &quot;research&quot;                              
+##  [12] &quot;microsoft word&quot;                        
+##  [13] &quot;teamwork&quot;                              
+##  [14] &quot;marketing&quot;                             
+##  [15] &quot;financial analysis&quot;                    
+##  [16] &quot;social media&quot;                          
+##  [17] &quot;sales&quot;                                 
+##  [18] &quot;strategy&quot;                              
+##  [19] &quot;time management&quot;                       
+##  [20] &quot;team leadership&quot;                       
+##  [21] &quot;finance&quot;                               
+##  [22] &quot;business strategy&quot;                     
+##  [23] &quot;analytical skills&quot;                     
+##  [24] &quot;marketing strategy&quot;                    
+##  [25] &quot;accounting&quot;                            
+##  [26] &quot;problem solving&quot;                       
+##  [27] &quot;powerpoint&quot;                            
+##  [28] &quot;business development&quot;                  
+##  [29] &quot;program management&quot;                    
+##  [30] &quot;event planning&quot;                        
+##  [31] &quot;microsoft powerpoint&quot;                  
+##  [32] &quot;financial modeling&quot;                    
+##  [33] &quot;team building&quot;                         
+##  [34] &quot;operations management&quot;                 
+##  [35] &quot;sql&quot;                                   
+##  [36] &quot;social media marketing&quot;                
+##  [37] &quot;training&quot;                              
+##  [38] &quot;cross-functional team leadership&quot;      
+##  [39] &quot;analysis&quot;                              
+##  [40] &quot;market research&quot;                       
+##  [41] &quot;negotiation&quot;                           
+##  [42] &quot;process improvement&quot;                   
+##  [43] &quot;business analysis&quot;                     
+##  [44] &quot;organization skills&quot;                   
+##  [45] &quot;risk management&quot;                       
+##  [46] &quot;financial reporting&quot;                   
+##  [47] &quot;investments&quot;                           
+##  [48] &quot;teaching&quot;                              
+##  [49] &quot;entrepreneurship&quot;                      
+##  [50] &quot;change management&quot;                     
+##  [51] &quot;leadership development&quot;                
+##  [52] &quot;python (programming language)&quot;         
+##  [53] &quot;account management&quot;                    
+##  [54] &quot;auditing&quot;                              
+##  [55] &quot;portfolio management&quot;                  
+##  [56] &quot;business process improvement&quot;          
+##  [57] &quot;budgets&quot;                               
+##  [58] &quot;advertising&quot;                           
+##  [59] &quot;financial accounting&quot;                  
+##  [60] &quot;due diligence&quot;                         
+##  [61] &quot;product development&quot;                   
+##  [62] &quot;community outreach&quot;                    
+##  [63] &quot;public relations&quot;                      
+##  [64] &quot;critical thinking&quot;                     
+##  [65] &quot;product management&quot;                    
+##  [66] &quot;banking&quot;                               
+##  [67] &quot;digital marketing&quot;                     
+##  [68] &quot;valuation&quot;                             
+##  [69] &quot;recruiting&quot;                            
+##  [70] &quot;fundraising&quot;                           
+##  [71] &quot;management consulting&quot;                 
+##  [72] &quot;coaching&quot;                              
+##  [73] &quot;customer relationship management (crm)&quot;
+##  [74] &quot;new business development&quot;              
+##  [75] &quot;interpersonal skills&quot;                  
+##  [76] &quot;project planning&quot;                      
+##  [77] &quot;tableau&quot;                               
+##  [78] &quot;statistics&quot;                            
+##  [79] &quot;corporate finance&quot;                     
+##  [80] &quot;sales management&quot;                      
+##  [81] &quot;presentation skills&quot;                   
+##  [82] &quot;presentations&quot;                         
+##  [83] &quot;contract negotiation&quot;                  
+##  [84] &quot;supply chain management&quot;               
+##  [85] &quot;healthcare&quot;                            
+##  [86] &quot;event management&quot;                      
+##  [87] &quot;business planning&quot;                     
+##  [88] &quot;higher education&quot;                      
+##  [89] &quot;analytics&quot;                             
+##  [90] &quot;artificial intelligence (ai)&quot;          
+##  [91] &quot;nonprofits&quot;                            
+##  [92] &quot;start-ups&quot;                             
+##  [93] &quot;asset management&quot;                      
+##  [94] &quot;internal controls&quot;                     
+##  [95] &quot;forecasting&quot;                           
+##  [96] &quot;team management&quot;                       
+##  [97] &quot;strategic partnerships&quot;                
+##  [98] &quot;inventory management&quot;                  
+##  [99] &quot;customer satisfaction&quot;                 
+## [100] &quot;english&quot;</code></pre>
 </div>
 <div id="helper-functions" class="section level1">
 <h1>Helper Functions</h1>
@@ -404,12 +495,12 @@ baseline_validation_metrics</code></pre>
 <pre><code>## # A tibble: 1 × 6
 ##   precision_micro recall_micro f1_micro precision_macro recall_macro f1_macro
 ##             &lt;dbl&gt;        &lt;dbl&gt;    &lt;dbl&gt;           &lt;dbl&gt;        &lt;dbl&gt;    &lt;dbl&gt;
-## 1           0.108            1    0.196           0.108            1    0.193</code></pre>
+## 1          0.0968        0.621    0.167          0.0319        0.330   0.0574</code></pre>
 <pre class="r"><code>baseline_test_metrics</code></pre>
 <pre><code>## # A tibble: 1 × 6
 ##   precision_micro recall_micro f1_micro precision_macro recall_macro f1_macro
 ##             &lt;dbl&gt;        &lt;dbl&gt;    &lt;dbl&gt;           &lt;dbl&gt;        &lt;dbl&gt;    &lt;dbl&gt;
-## 1           0.114            1    0.204           0.114            1    0.201</code></pre>
+## 1           0.101        0.617    0.174          0.0334        0.330   0.0596</code></pre>
 </div>
 <div id="model-1-one-vs-rest-logistic-regression" class="section level1">
 <h1>Model 1: One-vs-Rest Logistic Regression</h1>
@@ -489,12 +580,12 @@ logit_validation_metrics</code></pre>
 <pre><code>## # A tibble: 1 × 6
 ##   precision_micro recall_micro f1_micro precision_macro recall_macro f1_macro
 ##             &lt;dbl&gt;        &lt;dbl&gt;    &lt;dbl&gt;           &lt;dbl&gt;        &lt;dbl&gt;    &lt;dbl&gt;
-## 1           0.110        0.959    0.198           0.116        0.950    0.195</code></pre>
+## 1          0.0969        0.592    0.167          0.0356        0.319   0.0603</code></pre>
 <pre class="r"><code>logit_test_metrics</code></pre>
 <pre><code>## # A tibble: 1 × 6
 ##   precision_micro recall_micro f1_micro precision_macro recall_macro f1_macro
 ##             &lt;dbl&gt;        &lt;dbl&gt;    &lt;dbl&gt;           &lt;dbl&gt;        &lt;dbl&gt;    &lt;dbl&gt;
-## 1           0.116        0.958    0.207           0.123        0.952    0.204</code></pre>
+## 1           0.101        0.589    0.173          0.0357        0.318   0.0610</code></pre>
 </div>
 <div id="model-2-one-vs-rest-knn" class="section level1">
 <h1>Model 2: One-vs-Rest KNN</h1>
@@ -588,12 +679,12 @@ knn_validation_metrics</code></pre>
 <pre><code>## # A tibble: 1 × 6
 ##   precision_micro recall_micro f1_micro precision_macro recall_macro f1_macro
 ##             &lt;dbl&gt;        &lt;dbl&gt;    &lt;dbl&gt;           &lt;dbl&gt;        &lt;dbl&gt;    &lt;dbl&gt;
-## 1           0.136        0.246    0.175           0.124        0.226    0.159</code></pre>
+## 1          0.0996        0.179    0.128          0.0980        0.129   0.0938</code></pre>
 <pre class="r"><code>knn_test_metrics</code></pre>
 <pre><code>## # A tibble: 1 × 6
 ##   precision_micro recall_micro f1_micro precision_macro recall_macro f1_macro
 ##             &lt;dbl&gt;        &lt;dbl&gt;    &lt;dbl&gt;           &lt;dbl&gt;        &lt;dbl&gt;    &lt;dbl&gt;
-## 1           0.150        0.283    0.196           0.131        0.249    0.171</code></pre>
+## 1           0.110        0.200    0.142          0.0780        0.137   0.0937</code></pre>
 </div>
 <div id="model-3-one-vs-rest-xgboost" class="section level1">
 <h1>Model 3: One-vs-Rest XGBoost</h1>
@@ -666,12 +757,12 @@ xgb_validation_metrics</code></pre>
 <pre><code>## # A tibble: 1 × 6
 ##   precision_micro recall_micro f1_micro precision_macro recall_macro f1_macro
 ##             &lt;dbl&gt;        &lt;dbl&gt;    &lt;dbl&gt;           &lt;dbl&gt;        &lt;dbl&gt;    &lt;dbl&gt;
-## 1           0.202        0.533    0.293           0.221        0.494    0.289</code></pre>
+## 1           0.144        0.465    0.220           0.179        0.385    0.218</code></pre>
 <pre class="r"><code>xgb_test_metrics</code></pre>
 <pre><code>## # A tibble: 1 × 6
 ##   precision_micro recall_micro f1_micro precision_macro recall_macro f1_macro
 ##             &lt;dbl&gt;        &lt;dbl&gt;    &lt;dbl&gt;           &lt;dbl&gt;        &lt;dbl&gt;    &lt;dbl&gt;
-## 1           0.206        0.515    0.294           0.214        0.462    0.278</code></pre>
+## 1           0.138        0.420    0.207           0.147        0.330    0.182</code></pre>
 </div>
 <div id="compare-model-performance" class="section level1">
 <h1>Compare Model Performance</h1>
@@ -698,19 +789,19 @@ validation_results</code></pre>
 <pre><code>## # A tibble: 4 × 7
 ##   model       precision_micro recall_micro f1_micro precision_macro recall_macro
 ##   &lt;chr&gt;                 &lt;dbl&gt;        &lt;dbl&gt;    &lt;dbl&gt;           &lt;dbl&gt;        &lt;dbl&gt;
-## 1 Baseline F…           0.108        1        0.196           0.108        1    
-## 2 Logistic R…           0.110        0.959    0.198           0.116        0.950
-## 3 KNN                   0.136        0.246    0.175           0.124        0.226
-## 4 XGBoost               0.202        0.533    0.293           0.221        0.494
+## 1 Baseline F…          0.0968        0.621    0.167          0.0319        0.330
+## 2 Logistic R…          0.0969        0.592    0.167          0.0356        0.319
+## 3 KNN                  0.0996        0.179    0.128          0.0980        0.129
+## 4 XGBoost              0.144         0.465    0.220          0.179         0.385
 ## # ℹ 1 more variable: f1_macro &lt;dbl&gt;</code></pre>
 <pre class="r"><code>test_results</code></pre>
 <pre><code>## # A tibble: 4 × 7
 ##   model       precision_micro recall_micro f1_micro precision_macro recall_macro
 ##   &lt;chr&gt;                 &lt;dbl&gt;        &lt;dbl&gt;    &lt;dbl&gt;           &lt;dbl&gt;        &lt;dbl&gt;
-## 1 Baseline F…           0.114        1        0.204           0.114        1    
-## 2 Logistic R…           0.116        0.958    0.207           0.123        0.952
-## 3 KNN                   0.150        0.283    0.196           0.131        0.249
-## 4 XGBoost               0.206        0.515    0.294           0.214        0.462
+## 1 Baseline F…           0.101        0.617    0.174          0.0334        0.330
+## 2 Logistic R…           0.101        0.589    0.173          0.0357        0.318
+## 3 KNN                   0.110        0.200    0.142          0.0780        0.137
+## 4 XGBoost               0.138        0.420    0.207          0.147         0.330
 ## # ℹ 1 more variable: f1_macro &lt;dbl&gt;</code></pre>
 </div>
 <div id="select-final-model" class="section level1">
@@ -757,28 +848,28 @@ prediction_summary &lt;- tibble(
 
 head(prediction_summary, 20)</code></pre>
 <pre><code>## # A tibble: 20 × 3
-##    skill              actual_count predicted_count
-##    &lt;chr&gt;                     &lt;dbl&gt;           &lt;dbl&gt;
-##  1 leadership                  218             875
-##  2 microsoft excel             201             252
-##  3 microsoft office            176             716
-##  4 project management          140             333
-##  5 management                  136             273
-##  6 strategic planning          125             309
-##  7 customer service            120             343
-##  8 public speaking             113             186
-##  9 communication               102             207
-## 10 microsoft word               95             620
-## 11 financial analysis           95             183
-## 12 data analysis                91             246
-## 13 marketing                    89             103
-## 14 teamwork                     84             105
-## 15 sales                        82             105
-## 16 social media                 77             112
-## 17 research                     76             152
-## 18 finance                      66             231
-## 19 business strategy            66              96
-## 20 strategy                     60             178</code></pre>
+##    skill                actual_count predicted_count
+##    &lt;chr&gt;                       &lt;dbl&gt;           &lt;dbl&gt;
+##  1 leadership                    218             866
+##  2 microsoft excel               201             259
+##  3 microsoft office              176             771
+##  4 project management            140             204
+##  5 management                    136             132
+##  6 strategic planning            125             233
+##  7 customer service              120             484
+##  8 public speaking               113             358
+##  9 communication                 102             111
+## 10 microsoft word                 95             534
+## 11 financial analysis             95             135
+## 12 data analysis                  91             134
+## 13 marketing                      89             152
+## 14 teamwork                       84             181
+## 15 sales                          82             249
+## 16 social media                   77              98
+## 17 research                       76             261
+## 18 business development           68              93
+## 19 finance                        66              99
+## 20 business strategy              66             156</code></pre>
 </div>
 <div id="save-modeling-results" class="section level1">
 <h1>Save Modeling Results</h1>
