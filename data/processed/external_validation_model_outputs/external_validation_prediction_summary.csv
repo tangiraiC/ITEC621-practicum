@@ -1,0 +1,401 @@
+model,skill,actual_count,predicted_count,mean_probability
+Baseline Frequency Prior,microsoft office,163,359,0.17730150998538896
+Baseline Frequency Prior,microsoft excel,158,359,0.21237213833414584
+Baseline Frequency Prior,leadership,123,359,0.23599610326351692
+Baseline Frequency Prior,microsoft word,115,359,0.1005845104724797
+Baseline Frequency Prior,public speaking,94,359,0.1290793960058446
+Baseline Frequency Prior,microsoft powerpoint,92,359,0.058207501217729954
+Baseline Frequency Prior,customer service,83,359,0.14831953239162288
+Baseline Frequency Prior,research,79,359,0.10107160253287871
+Baseline Frequency Prior,teamwork,76,359,0.09766195811008307
+Baseline Frequency Prior,social media,76,359,0.09206039941549002
+Baseline Frequency Prior,data analysis,73,359,0.11397954213346377
+Baseline Frequency Prior,management,67,359,0.14125669751583017
+Baseline Frequency Prior,project management,65,359,0.14734534827082352
+Baseline Frequency Prior,communication,64,359,0.10886507549926937
+Baseline Frequency Prior,financial analysis,46,359,0.09571358986848506
+Baseline Frequency Prior,time management,44,359,0.06867998051631802
+Baseline Frequency Prior,marketing,41,359,0.09693132001948347
+Baseline Frequency Prior,analytical skills,41,359,0.0640526059425236
+Baseline Frequency Prior,event planning,39,359,0.05845104724793025
+Baseline Frequency Prior,sales,38,359,0.0905991232342913
+Baseline Frequency Prior,powerpoint,35,359,0.062104237700925345
+Baseline Frequency Prior,sql,31,0,0.04822211397954175
+Baseline Frequency Prior,business development,30,359,0.06137359961032632
+Baseline Frequency Prior,tableau,30,0,0.025328787140769617
+Baseline Frequency Prior,business analysis,28,0,0.03896736483195303
+Baseline Frequency Prior,strategic planning,27,359,0.1307842182172435
+Baseline Frequency Prior,team leadership,27,359,0.06843643448611753
+Baseline Frequency Prior,accounting,27,359,0.06332196785192354
+Baseline Frequency Prior,social media marketing,26,0,0.04554310764734547
+Baseline Frequency Prior,business strategy,24,359,0.06770579639551856
+Baseline Frequency Prior,financial modeling,23,359,0.056015586945932505
+Baseline Frequency Prior,digital marketing,22,0,0.02727715538236736
+Baseline Frequency Prior,python (programming language),21,0,0.03190452995616159
+Baseline Frequency Prior,finance,20,359,0.06794934242571786
+Baseline Frequency Prior,problem solving,18,359,0.06307842182172478
+Baseline Frequency Prior,operations management,18,0,0.049683390160740644
+Baseline Frequency Prior,interpersonal skills,17,0,0.025572333170969283
+Baseline Frequency Prior,customer relationship management (crm),16,0,0.025815879201169064
+Baseline Frequency Prior,marketing strategy,15,359,0.06380905991232318
+Baseline Frequency Prior,market research,15,0,0.039698002922552426
+Baseline Frequency Prior,financial reporting,15,0,0.03726254262055497
+Baseline Frequency Prior,english,15,0,0.019970774476376137
+Baseline Frequency Prior,strategy,14,359,0.08085728202630356
+Baseline Frequency Prior,program management,14,359,0.06113005358012657
+Baseline Frequency Prior,negotiation,14,0,0.039698002922552426
+Baseline Frequency Prior,organization skills,14,0,0.03896736483195303
+Baseline Frequency Prior,financial accounting,14,0,0.028981977593765307
+Baseline Frequency Prior,training,13,0,0.0438382854359477
+Baseline Frequency Prior,presentation skills,13,0,0.023623964929371633
+Baseline Frequency Prior,analytics,13,0,0.02216268874817362
+Baseline Frequency Prior,artificial intelligence (ai),13,0,0.02191914271797385
+Baseline Frequency Prior,auditing,12,0,0.03093034583536298
+Baseline Frequency Prior,teaching,11,0,0.03409644422795918
+Baseline Frequency Prior,fundraising,11,0,0.02654651729176823
+Baseline Frequency Prior,event management,11,0,0.022893326838772602
+Baseline Frequency Prior,team building,10,359,0.055041402825133846
+Baseline Frequency Prior,risk management,10,0,0.03872381880175319
+Baseline Frequency Prior,change management,10,0,0.03312226010716005
+Baseline Frequency Prior,business process improvement,10,0,0.029712615684364396
+Baseline Frequency Prior,advertising,10,0,0.028981977593765307
+Baseline Frequency Prior,community outreach,10,0,0.02873843156356575
+Baseline Frequency Prior,project planning,10,0,0.025328787140769617
+Baseline Frequency Prior,corporate finance,9,0,0.024354603019970656
+Baseline Frequency Prior,presentations,9,0,0.02338041889917184
+Baseline Frequency Prior,account management,8,0,0.031173891865562377
+Baseline Frequency Prior,due diligence,8,0,0.028981977593765307
+Baseline Frequency Prior,public relations,8,0,0.028251339503166054
+Baseline Frequency Prior,critical thinking,8,0,0.028251339503166054
+Baseline Frequency Prior,statistics,8,0,0.024841695080370322
+Baseline Frequency Prior,cross-functional team leadership,7,0,0.042377009254749506
+Baseline Frequency Prior,valuation,7,0,0.02703360935216756
+Baseline Frequency Prior,business planning,7,0,0.022893326838772602
+Baseline Frequency Prior,team management,7,0,0.020457866536775365
+Baseline Frequency Prior,process improvement,6,0,0.039454456892352524
+Baseline Frequency Prior,coaching,6,0,0.02605942523136857
+Baseline Frequency Prior,supply chain management,6,0,0.02338041889917184
+Baseline Frequency Prior,forecasting,6,0,0.020457866536775365
+Baseline Frequency Prior,analysis,5,0,0.039698002922552426
+Baseline Frequency Prior,investments,5,0,0.035801266439357
+Baseline Frequency Prior,entrepreneurship,5,0,0.03385289819775928
+Baseline Frequency Prior,leadership development,5,0,0.0326351680467609
+Baseline Frequency Prior,product management,5,0,0.028007793472966253
+Baseline Frequency Prior,recruiting,5,0,0.02679006332196803
+Baseline Frequency Prior,management consulting,5,0,0.02605942523136857
+Baseline Frequency Prior,contract negotiation,5,0,0.02338041889917184
+Baseline Frequency Prior,nonprofits,5,0,0.02167559668777397
+Baseline Frequency Prior,asset management,5,0,0.021188504627374753
+Baseline Frequency Prior,customer satisfaction,5,0,0.02021432050657589
+Baseline Frequency Prior,product development,4,0,0.02873843156356575
+Baseline Frequency Prior,higher education,4,0,0.02240623477837295
+Baseline Frequency Prior,strategic partnerships,4,0,0.020457866536775365
+Baseline Frequency Prior,portfolio management,3,0,0.030443253774963583
+Baseline Frequency Prior,new business development,3,0,0.025572333170969283
+Baseline Frequency Prior,sales management,3,0,0.024354603019970656
+Baseline Frequency Prior,inventory management,3,0,0.020457866536775365
+Baseline Frequency Prior,banking,2,0,0.027520701412566923
+Baseline Frequency Prior,internal controls,2,0,0.02070141256697511
+Baseline Frequency Prior,healthcare,1,0,0.02313687286897206
+Baseline Frequency Prior,start-ups,1,0,0.021188504627374753
+Baseline Frequency Prior,budgets,0,0,0.028981977593765307
+Logistic Regression,microsoft office,163,359,0.1773015099853854
+Logistic Regression,microsoft excel,158,356,0.2144479366958088
+Logistic Regression,leadership,123,359,0.23599610326351692
+Logistic Regression,microsoft word,115,359,0.1005845104724797
+Logistic Regression,public speaking,94,359,0.1290793960058446
+Logistic Regression,microsoft powerpoint,92,359,0.058207501217729905
+Logistic Regression,customer service,83,359,0.14831953239162285
+Logistic Regression,research,79,359,0.10107160253287871
+Logistic Regression,teamwork,76,359,0.09766195811008306
+Logistic Regression,social media,76,359,0.09206039941549002
+Logistic Regression,data analysis,73,359,0.11397954213346381
+Logistic Regression,management,67,359,0.14125669751583017
+Logistic Regression,project management,65,359,0.1473453482708246
+Logistic Regression,communication,64,359,0.1095063318537978
+Logistic Regression,financial analysis,46,359,0.09571358986848495
+Logistic Regression,time management,44,359,0.06867998051631802
+Logistic Regression,marketing,41,359,0.09693132001948362
+Logistic Regression,analytical skills,41,359,0.0640526059425236
+Logistic Regression,event planning,39,359,0.05845104724793025
+Logistic Regression,sales,38,17,0.09098116540041723
+Logistic Regression,powerpoint,35,359,0.062104237700925345
+Logistic Regression,sql,31,0,0.048222113979541736
+Logistic Regression,business development,30,358,0.06152407456927413
+Logistic Regression,tableau,30,0,0.026387242568622904
+Logistic Regression,business analysis,28,0,0.03896736483195303
+Logistic Regression,strategic planning,27,359,0.1307842182172435
+Logistic Regression,team leadership,27,359,0.06843643448611753
+Logistic Regression,accounting,27,359,0.06332196785192354
+Logistic Regression,social media marketing,26,0,0.04554310764734553
+Logistic Regression,business strategy,24,359,0.06770579639551856
+Logistic Regression,financial modeling,23,359,0.0560155869459325
+Logistic Regression,digital marketing,22,0,0.027277155382367385
+Logistic Regression,python (programming language),21,0,0.03190452995616156
+Logistic Regression,finance,20,359,0.0679493424257191
+Logistic Regression,problem solving,18,359,0.06307842182172413
+Logistic Regression,operations management,18,0,0.049683390160740644
+Logistic Regression,interpersonal skills,17,0,0.025572333170969283
+Logistic Regression,customer relationship management (crm),16,0,0.02581587920116907
+Logistic Regression,marketing strategy,15,359,0.06380905991232316
+Logistic Regression,market research,15,0,0.039698002922552406
+Logistic Regression,financial reporting,15,0,0.03726254262055497
+Logistic Regression,english,15,0,0.019970774476376168
+Logistic Regression,strategy,14,359,0.08085728202630353
+Logistic Regression,program management,14,359,0.0611300535801266
+Logistic Regression,negotiation,14,0,0.0396980029225524
+Logistic Regression,organization skills,14,0,0.03896736483195303
+Logistic Regression,financial accounting,14,0,0.02898197759376522
+Logistic Regression,training,13,0,0.04383828543594747
+Logistic Regression,presentation skills,13,0,0.023623964929371778
+Logistic Regression,analytics,13,0,0.022162688748173624
+Logistic Regression,artificial intelligence (ai),13,0,0.02191914271797385
+Logistic Regression,auditing,12,0,0.030930345835362975
+Logistic Regression,teaching,11,0,0.03409644422795918
+Logistic Regression,fundraising,11,0,0.026546517291768254
+Logistic Regression,event management,11,0,0.02289332683877271
+Logistic Regression,team building,10,359,0.055041402825133846
+Logistic Regression,risk management,10,0,0.038723818801753164
+Logistic Regression,change management,10,0,0.03312226010716006
+Logistic Regression,business process improvement,10,0,0.029712615684364063
+Logistic Regression,advertising,10,0,0.02898197759376519
+Logistic Regression,community outreach,10,0,0.028738431563565762
+Logistic Regression,project planning,10,0,0.025328787140769617
+Logistic Regression,corporate finance,9,0,0.02435460301997065
+Logistic Regression,presentations,9,0,0.023380418899171834
+Logistic Regression,account management,8,0,0.031173891865562343
+Logistic Regression,due diligence,8,0,0.02898197759376522
+Logistic Regression,public relations,8,0,0.02825133950316604
+Logistic Regression,critical thinking,8,0,0.028251339503166047
+Logistic Regression,statistics,8,0,0.024841695080370298
+Logistic Regression,cross-functional team leadership,7,0,0.042377009254749506
+Logistic Regression,valuation,7,0,0.027033609352167583
+Logistic Regression,business planning,7,0,0.022893326838772602
+Logistic Regression,team management,7,0,0.020457866536775355
+Logistic Regression,process improvement,6,0,0.039454456892352524
+Logistic Regression,coaching,6,0,0.02605942523136857
+Logistic Regression,supply chain management,6,0,0.023380418899171834
+Logistic Regression,forecasting,6,0,0.020457866536775365
+Logistic Regression,analysis,5,0,0.0396980029225524
+Logistic Regression,investments,5,0,0.03580126643935699
+Logistic Regression,entrepreneurship,5,0,0.03385289819775928
+Logistic Regression,leadership development,5,0,0.03263516804676088
+Logistic Regression,product management,5,0,0.028593923595689238
+Logistic Regression,recruiting,5,0,0.026790063321968063
+Logistic Regression,management consulting,5,0,0.02605942523136857
+Logistic Regression,contract negotiation,5,0,0.023380418899171834
+Logistic Regression,nonprofits,5,0,0.02167559668777397
+Logistic Regression,asset management,5,0,0.021188504627374326
+Logistic Regression,customer satisfaction,5,0,0.020214320506575883
+Logistic Regression,product development,4,0,0.028738431563565404
+Logistic Regression,higher education,4,0,0.022406234778372947
+Logistic Regression,strategic partnerships,4,0,0.020457866536775355
+Logistic Regression,portfolio management,3,0,0.030443253774963572
+Logistic Regression,new business development,3,0,0.025572333170969283
+Logistic Regression,sales management,3,0,0.024354603019970614
+Logistic Regression,inventory management,3,0,0.020457866536775355
+Logistic Regression,banking,2,0,0.027520701412566947
+Logistic Regression,internal controls,2,0,0.02070141256697511
+Logistic Regression,healthcare,1,0,0.02313687286897206
+Logistic Regression,start-ups,1,0,0.021188504627374326
+Logistic Regression,budgets,0,0,0.028981977593765213
+KNN,microsoft office,163,136,0.13257470101961863
+KNN,microsoft excel,158,152,0.1566800257752145
+KNN,leadership,123,155,0.15671392082655916
+KNN,microsoft word,115,98,0.06838571693566865
+KNN,public speaking,94,112,0.08472605763416266
+KNN,microsoft powerpoint,92,52,0.034352156955854946
+KNN,customer service,83,125,0.10653833916919157
+KNN,research,79,96,0.0713364374120828
+KNN,teamwork,76,83,0.06502959521757005
+KNN,social media,76,78,0.06299833165550384
+KNN,data analysis,73,90,0.06467458319559417
+KNN,management,67,114,0.08414823438042653
+KNN,project management,65,104,0.08184410327255918
+KNN,communication,64,83,0.060232017530424314
+KNN,financial analysis,46,102,0.075403886772738
+KNN,time management,44,62,0.03912383647466894
+KNN,marketing,41,88,0.06051211868563276
+KNN,analytical skills,41,63,0.04406287847535671
+KNN,event planning,39,55,0.04010671335763403
+KNN,sales,38,82,0.06715815415437712
+KNN,powerpoint,35,60,0.04755089443309578
+KNN,sql,31,56,0.04138783312114246
+KNN,business development,30,45,0.0365021596862758
+KNN,tableau,30,22,0.015021049875933515
+KNN,business analysis,28,37,0.024153934960339282
+KNN,strategic planning,27,87,0.07142803643832432
+KNN,accounting,27,67,0.06060723875765145
+KNN,team leadership,27,62,0.04120306972081343
+KNN,social media marketing,26,12,0.03533417547513288
+KNN,business strategy,24,39,0.03264079258970713
+KNN,financial modeling,23,81,0.05498112390573279
+KNN,digital marketing,22,25,0.02012490472995411
+KNN,python (programming language),21,40,0.025030700572078953
+KNN,finance,20,76,0.05251141252828608
+KNN,problem solving,18,59,0.04205657203928243
+KNN,operations management,18,28,0.016228106514745034
+KNN,interpersonal skills,17,15,0.01099264888073905
+KNN,customer relationship management (crm),16,24,0.015167930281597283
+KNN,marketing strategy,15,55,0.0430024135094917
+KNN,financial reporting,15,54,0.03388850221498418
+KNN,market research,15,49,0.029635463404662325
+KNN,english,15,19,0.020218606063665514
+KNN,strategy,14,54,0.034682698643995064
+KNN,organization skills,14,40,0.025588158328249413
+KNN,program management,14,39,0.02302293695152896
+KNN,financial accounting,14,38,0.02724161314910472
+KNN,negotiation,14,25,0.017750592914354237
+KNN,training,13,33,0.02170687469720733
+KNN,presentation skills,13,23,0.012885604825581468
+KNN,analytics,13,17,0.010100207725912696
+KNN,artificial intelligence (ai),13,13,0.00729455376610454
+KNN,auditing,12,33,0.0234709161794202
+KNN,event management,11,36,0.023932751907684617
+KNN,fundraising,11,3,0.020406725982838433
+KNN,teaching,11,0,0.01667221069872064
+KNN,community outreach,10,37,0.023470797958754706
+KNN,team building,10,34,0.023860519081068687
+KNN,risk management,10,34,0.021369007722583738
+KNN,business process improvement,10,32,0.01843902369816176
+KNN,project planning,10,26,0.014592983437694685
+KNN,advertising,10,4,0.021632106824801288
+KNN,change management,10,0,0.010657430566180114
+KNN,presentations,9,39,0.021799493372945115
+KNN,corporate finance,9,26,0.015632655747755426
+KNN,critical thinking,8,32,0.01899588876536255
+KNN,account management,8,31,0.017990327428816455
+KNN,due diligence,8,29,0.017752773298147884
+KNN,public relations,8,27,0.01996103718500186
+KNN,statistics,8,0,0.016174314616625135
+KNN,valuation,7,45,0.03188149511637194
+KNN,cross-functional team leadership,7,37,0.022245073016197756
+KNN,team management,7,34,0.01899624190193109
+KNN,business planning,7,15,0.008410930548092352
+KNN,process improvement,6,30,0.01683994885800506
+KNN,forecasting,6,29,0.01871492193363243
+KNN,coaching,6,21,0.013964108342843564
+KNN,supply chain management,6,12,0.009339545671024331
+KNN,investments,5,46,0.03184156127416026
+KNN,product management,5,36,0.02447141559879051
+KNN,analysis,5,32,0.01966164430837098
+KNN,management consulting,5,24,0.015095930845456467
+KNN,entrepreneurship,5,22,0.015112790728105032
+KNN,nonprofits,5,22,0.01238347748203877
+KNN,recruiting,5,19,0.019770975365951834
+KNN,customer satisfaction,5,19,0.010639695940928296
+KNN,contract negotiation,5,11,0.011509340553327056
+KNN,asset management,5,3,0.017954746119573355
+KNN,leadership development,5,2,0.0188287432950478
+KNN,strategic partnerships,4,24,0.017378606387184935
+KNN,higher education,4,17,0.010693841005723856
+KNN,product development,4,0,0.021036184700577654
+KNN,portfolio management,3,39,0.02421021275404032
+KNN,sales management,3,24,0.02242904725335012
+KNN,inventory management,3,20,0.014947227829065676
+KNN,new business development,3,18,0.015893577577249483
+KNN,internal controls,2,29,0.01788191755313189
+KNN,banking,2,4,0.016283318706707305
+KNN,start-ups,1,21,0.015911435546715366
+KNN,healthcare,1,0,0.017600825821652632
+KNN,budgets,0,32,0.02322623796844769
+XGBoost,microsoft office,163,346,0.4992249445745872
+XGBoost,microsoft excel,158,219,0.499947911289243
+XGBoost,leadership,123,359,0.47016676841173993
+XGBoost,microsoft word,115,157,0.4550648620948818
+XGBoost,public speaking,94,56,0.445817964654779
+XGBoost,microsoft powerpoint,92,143,0.4149139175777814
+XGBoost,customer service,83,115,0.450974318019859
+XGBoost,research,79,91,0.40331660607482067
+XGBoost,social media,76,84,0.4344910282880317
+XGBoost,teamwork,76,68,0.4358646580767831
+XGBoost,data analysis,73,50,0.45329020286502947
+XGBoost,management,67,102,0.44599645725946907
+XGBoost,project management,65,190,0.4782184577004823
+XGBoost,communication,64,123,0.4412496205948522
+XGBoost,financial analysis,46,80,0.39573343269381683
+XGBoost,time management,44,160,0.4108865482104854
+XGBoost,analytical skills,41,138,0.4161989548163162
+XGBoost,marketing,41,42,0.40016895835612143
+XGBoost,event planning,39,76,0.39513364720643396
+XGBoost,sales,38,78,0.3992612316249805
+XGBoost,powerpoint,35,117,0.4316795236926557
+XGBoost,sql,31,43,0.3816897097694841
+XGBoost,business development,30,24,0.31252965550029177
+XGBoost,tableau,30,15,0.3548248201442628
+XGBoost,business analysis,28,19,0.3663967288096635
+XGBoost,team leadership,27,310,0.4218954837836927
+XGBoost,strategic planning,27,100,0.3860249048031472
+XGBoost,accounting,27,30,0.3592576944271834
+XGBoost,social media marketing,26,36,0.3122865022224968
+XGBoost,business strategy,24,31,0.3419303716806316
+XGBoost,financial modeling,23,40,0.3462347867885672
+XGBoost,digital marketing,22,28,0.23047814526514754
+XGBoost,python (programming language),21,54,0.3183260721810847
+XGBoost,finance,20,93,0.36263682991058716
+XGBoost,problem solving,18,113,0.40367293457466913
+XGBoost,operations management,18,24,0.34903681771129286
+XGBoost,interpersonal skills,17,52,0.32502189425953915
+XGBoost,customer relationship management (crm),16,13,0.3060718794511553
+XGBoost,financial reporting,15,54,0.2844279879045188
+XGBoost,market research,15,40,0.3344127265399213
+XGBoost,marketing strategy,15,26,0.3191634108698966
+XGBoost,english,15,0,0.293174370552587
+XGBoost,program management,14,71,0.3314386273949591
+XGBoost,financial accounting,14,69,0.30321983375630673
+XGBoost,organization skills,14,48,0.3350960792750535
+XGBoost,negotiation,14,38,0.3421219715895261
+XGBoost,strategy,14,37,0.3260768932552391
+XGBoost,training,13,31,0.3428801945449582
+XGBoost,analytics,13,31,0.29169975868672715
+XGBoost,presentation skills,13,27,0.33455853270039915
+XGBoost,artificial intelligence (ai),13,2,0.26453372942994563
+XGBoost,auditing,12,60,0.2733001496985264
+XGBoost,event management,11,32,0.2980637793172369
+XGBoost,fundraising,11,25,0.30273096642682645
+XGBoost,teaching,11,3,0.2961642590862463
+XGBoost,team building,10,50,0.3852107546040607
+XGBoost,project planning,10,43,0.33468108628370635
+XGBoost,risk management,10,38,0.3258282869514649
+XGBoost,change management,10,28,0.29733317954502064
+XGBoost,advertising,10,18,0.23013667535026425
+XGBoost,business process improvement,10,9,0.2981471471841289
+XGBoost,community outreach,10,8,0.29178010902697
+XGBoost,corporate finance,9,18,0.2621191019882399
+XGBoost,presentations,9,1,0.35006439596580596
+XGBoost,critical thinking,8,70,0.3685252538007946
+XGBoost,due diligence,8,67,0.2826763769575397
+XGBoost,account management,8,19,0.2983623851910441
+XGBoost,public relations,8,9,0.2728774930379019
+XGBoost,statistics,8,0,0.2196335165883339
+XGBoost,cross-functional team leadership,7,41,0.28744260128328064
+XGBoost,team management,7,19,0.31126183323292345
+XGBoost,valuation,7,18,0.294065142823461
+XGBoost,business planning,7,10,0.2629906743567717
+XGBoost,forecasting,6,31,0.30190087537330507
+XGBoost,process improvement,6,28,0.3391648353619662
+XGBoost,supply chain management,6,10,0.23138258330171155
+XGBoost,coaching,6,1,0.24844976974272462
+XGBoost,analysis,5,33,0.34364714728756535
+XGBoost,entrepreneurship,5,25,0.2889453956239901
+XGBoost,product management,5,20,0.2274030143379501
+XGBoost,customer satisfaction,5,20,0.2904774172433904
+XGBoost,leadership development,5,15,0.2710627139361788
+XGBoost,contract negotiation,5,13,0.2838231725384764
+XGBoost,recruiting,5,7,0.23131073640872177
+XGBoost,management consulting,5,6,0.24952323596748135
+XGBoost,asset management,5,4,0.20692627299006272
+XGBoost,investments,5,3,0.26819734667586087
+XGBoost,nonprofits,5,3,0.29255636071158486
+XGBoost,strategic partnerships,4,40,0.20059661468631046
+XGBoost,product development,4,7,0.2559088127256934
+XGBoost,higher education,4,1,0.13456987428237635
+XGBoost,new business development,3,11,0.25563504859224
+XGBoost,sales management,3,11,0.25516385462622787
+XGBoost,inventory management,3,7,0.2615955457776204
+XGBoost,portfolio management,3,0,0.26761899056291844
+XGBoost,banking,2,20,0.2343284715288695
+XGBoost,internal controls,2,9,0.22923964750758452
+XGBoost,start-ups,1,4,0.18066854775989621
+XGBoost,healthcare,1,2,0.21013744546925456
+XGBoost,budgets,0,24,0.3143119258873559

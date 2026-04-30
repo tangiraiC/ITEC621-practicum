@@ -4,10 +4,19 @@ author: "Team"
 output: html_document
 ---
 
+## File Overview
+
+This notebook trains a one-vs-rest KNN model for the 5k skill prediction task. It reduces and scales the TF-IDF feature space for KNN, predicts skill labels based on nearby profiles, tunes thresholds, evaluates performance, and saves outputs.
+
 This notebook trains and evaluates the one-vs-rest KNN model for the 5k
 LinkedIn skills extraction dataset.
 
+The setup chunk controls output formatting and loads the packages used for table manipulation, sparse matrices, and KNN classification.
+
+**Summary:** This chunk sets global R Markdown options so rendered reports show code while suppressing warnings and messages. It also loads any packages needed immediately by this notebook.
+
 ```{r setup, include=FALSE}
+# Set notebook output options and load required packages.
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 
 library(dplyr)
@@ -18,7 +27,12 @@ library(class)
 
 # Load Encoded 5k Inputs
 
+This block loads the encoded train, validation, and test objects from the previous step. It extracts TF-IDF feature matrices, multi-label target matrices, and retained skill labels, then prints dimensions to verify the split sizes.
+
+**Summary:** This chunk loads the encoded train, validation, and test objects produced by feature encoding. It extracts input matrices, target matrices, and skill labels for the model notebook.
+
 ```{r load-data}
+# Load encoded feature matrices and multi-label targets.
 project_root <- normalizePath(file.path("..", "..", "..", ".."))
 split_input_path <- file.path(project_root, "data", "processed", "train_validation_test_split.rds")
 
@@ -44,8 +58,13 @@ cat("y_test dimensions:", dim(y_test), "\n")
 
 # Modeling Scope
 
+This block limits the model to the 100 most common skills. KNN becomes expensive on large high-dimensional label problems, so this scope keeps the run manageable and comparable with the other standalone model files.
+
+**Summary:** This chunk limits modeling to the most frequent skill labels. The cap keeps training computationally manageable and ensures all compared models use the same target set.
+
 ```{r modeling-scope}
-max_model_labels <- 25
+# Select the most frequent skill labels for this model run.
+max_model_labels <- 100
 
 label_prevalence <- colMeans(y_train)
 label_order <- order(label_prevalence, decreasing = TRUE)
@@ -62,7 +81,12 @@ print(retained_skills)
 
 # Helper Functions
 
+This block defines reusable helpers for multi-label evaluation, probability thresholding, checking whether a label has both classes, and tuning skill-specific thresholds on validation data.
+
+**Summary:** This chunk defines reusable helper functions for multi-label evaluation, probability thresholding, class checks, and validation-set threshold tuning. These helpers keep scoring consistent across skill labels.
+
 ```{r helper-functions}
+# Define metric, prediction, class-check, and threshold tuning helpers.
 safe_divide <- function(num, den) {
   ifelse(den == 0, 0, num / den)
 }
@@ -157,7 +181,12 @@ tune_label_thresholds <- function(y_true, prob_matrix, grid = seq(0.05, 0.95, by
 
 # Train KNN
 
+This block trains the KNN-style prediction workflow. It selects the most active TF-IDF features, converts them to dense matrices, scales validation and test data using training statistics, predicts each skill with `k = 5`, tunes thresholds, and evaluates validation/test performance.
+
+**Summary:** This chunk trains the KNN model using a reduced and scaled TF-IDF feature matrix. The reduction is needed because KNN is memory-intensive on high-dimensional sparse text features.
+
 ```{r train-knn}
+# Build dense reduced features, run KNN per skill, and evaluate predictions.
 set.seed(621)
 
 knn_feature_count <- min(500, ncol(X_train))
@@ -250,7 +279,12 @@ knn_test_metrics
 
 # Save Outputs
 
+This block saves the KNN settings, scaling values, selected feature indexes, probabilities, predictions, thresholds, metrics, and retained skill labels for downstream reporting.
+
+**Summary:** This chunk saves this model's outputs, including metrics, thresholds, predictions, probabilities, retained labels, and fitted artifacts where applicable. Saving these files supports later comparison and reporting.
+
 ```{r save-outputs}
+# Write KNN artifacts and metric CSV files to the output folder.
 model_output_dir <- file.path(project_root, "data", "processed", "5k_model_outputs", "knn")
 dir.create(model_output_dir, recursive = TRUE, showWarnings = FALSE)
 

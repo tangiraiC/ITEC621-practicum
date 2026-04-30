@@ -310,3 +310,100 @@ cat("Saved TF-IDF matrix to:", tfidf_output_path, "\n")
 cat("Saved multi-label targets to:", targets_output_path, "\n")
 cat("Saved train/validation/test split objects to:", split_output_path, "\n")
 ```
+
+# External Validation Model Input Encoding
+
+This section encodes the KSB alumni + LinkedIn external validation dataset using
+the same skill vocabulary and TF-IDF vocabulary fitted above on the 5k training
+workflow. It does not create a new train/validation/test split and does not
+overwrite the main model inputs.
+
+```{r encode-external-validation-data}
+# Import the preprocessed external validation dataset from the added preprocessing step.
+external_preprocessed_input_path <- "../data/processed/ksb_alumni_linkedin_preprocessed.csv"
+
+ksb_external_preprocessed <- read_csv(
+  external_preprocessed_input_path,
+  show_col_types = FALSE
+)
+
+# Clean the profile text and parse skills with the same helper functions used
+# for the main 5k modeling input.
+ksb_external_encoded <- ksb_external_preprocessed |>
+  mutate(
+    profile_text = clean_text_for_tfidf(profile_text),
+    parsed_skills = map(skills_list, parse_skills_list),
+    retained_skill_list = map(parsed_skills, ~ .x[.x %in% retained_skills]),
+    retained_skill_count = map_int(retained_skill_list, length)
+  )
+
+# Create an external validation target matrix aligned to the retained skill
+# columns from the main workflow. This preserves the same label order.
+external_n_rows <- nrow(ksb_external_encoded)
+external_n_skills <- length(retained_skills)
+
+external_y_matrix <- matrix(0L, nrow = external_n_rows, ncol = external_n_skills)
+colnames(external_y_matrix) <- retained_skills
+
+for (i in seq_len(external_n_rows)) {
+  skills_i <- ksb_external_encoded$retained_skill_list[[i]]
+
+  if (length(skills_i) > 0) {
+    matched_cols <- match(skills_i, colnames(external_y_matrix))
+    matched_cols <- matched_cols[!is.na(matched_cols)]
+
+    if (length(matched_cols) > 0) {
+      external_y_matrix[i, matched_cols] <- 1L
+    }
+  }
+}
+
+external_y_df <- as_tibble(external_y_matrix)
+
+# Transform external validation profile text with the TF-IDF vocabulary and IDF
+# weights already fitted above. This keeps the feature space compatible.
+external_tokens_iterator <- itoken(
+  ksb_external_encoded$profile_text,
+  tokenizer = word_tokenizer,
+  progressbar = FALSE
+)
+
+external_dtm <- create_dtm(external_tokens_iterator, vectorizer)
+external_tfidf_matrix <- tfidf_transformer$transform(external_dtm)
+
+if (!is.null(colnames(tfidf_matrix))) {
+  external_tfidf_matrix <- external_tfidf_matrix[, colnames(tfidf_matrix), drop = FALSE]
+}
+
+stopifnot(nrow(external_tfidf_matrix) == nrow(external_y_df))
+
+cat("External validation encoded profiles:", nrow(ksb_external_encoded), "\n")
+cat("External validation TF-IDF dimensions:", dim(external_tfidf_matrix), "\n")
+cat("External validation target dimensions:", dim(external_y_df), "\n")
+
+# Save separate external validation encoding outputs.
+external_tfidf_output_path <- "../data/processed/ksb_alumni_linkedin_tfidf.rds"
+external_targets_output_path <- "../data/processed/ksb_alumni_linkedin_multilabel_targets.csv"
+external_encoded_profiles_output_path <- "../data/processed/ksb_alumni_linkedin_encoded_profiles.csv"
+
+saveRDS(external_tfidf_matrix, external_tfidf_output_path)
+
+external_targets_to_save <- bind_cols(
+  ksb_external_encoded |> select(linkedin_url, Index),
+  external_y_df
+)
+
+write_csv(external_targets_to_save, external_targets_output_path)
+
+ksb_external_profiles_to_save <- ksb_external_encoded |>
+  mutate(
+    parsed_skills = map_chr(parsed_skills, paste, collapse = ", "),
+    retained_skill_list = map_chr(retained_skill_list, paste, collapse = ", ")
+  )
+
+write_csv(ksb_external_profiles_to_save, external_encoded_profiles_output_path)
+
+cat("Saved external validation TF-IDF matrix to:", external_tfidf_output_path, "\n")
+cat("Saved external validation targets to:", external_targets_output_path, "\n")
+cat("Saved external validation encoded profiles to:", external_encoded_profiles_output_path, "\n")
+```

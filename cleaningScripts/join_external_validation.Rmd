@@ -1,0 +1,304 @@
+---
+title: "Join External Validation Sheets"
+output: html_document
+---
+
+```{r setup, message=FALSE, warning=FALSE}
+suppressWarnings(suppressPackageStartupMessages({
+  library(readxl)
+  library(dplyr)
+  library(readr)
+  library(stringr)
+}))
+```
+
+```{r paths}
+resolve_project_path <- function(...) {
+  candidates <- c(
+    normalizePath(file.path(...), winslash = "/", mustWork = FALSE),
+    normalizePath(file.path("..", ...), winslash = "/", mustWork = FALSE)
+  )
+
+  existing_candidate <- candidates[file.exists(candidates)][1]
+  if (!is.na(existing_candidate)) {
+    return(existing_candidate)
+  }
+
+  candidates[1]
+}
+
+external_validation_dir <- resolve_project_path("data", "externalvalidation")
+input_file <- file.path(external_validation_dir, "alumnivalidation.xlsx")
+output_file <- file.path(external_validation_dir, "ksb_alumni_linkedin_joined.csv")
+
+if (!file.exists(input_file)) {
+  stop("Could not find input workbook: ", input_file)
+}
+```
+
+```{r read-sheets}
+available_sheets <- excel_sheets(input_file)
+
+alumni_sheet <- if ("ksb_alumni" %in% available_sheets) {
+  "ksb_alumni"
+} else if ("ksd_alumni" %in% available_sheets) {
+  "ksd_alumni"
+} else {
+  stop("Could not find alumni sheet. Expected ksb_alumni or ksd_alumni.")
+}
+
+linkedin_sheet <- "ksb_linkedin"
+if (!linkedin_sheet %in% available_sheets) {
+  stop("Could not find LinkedIn sheet: ", linkedin_sheet)
+}
+
+ksb_alumni <- suppressWarnings(read_excel(input_file, sheet = alumni_sheet))
+
+linkedin_col_types <- rep("guess", 29)
+linkedin_col_types[c(13, 24, 25, 29)] <- "date"
+linkedin_col_types[28] <- "text"
+
+ksb_linkedin <- suppressWarnings(read_excel(
+  input_file,
+  sheet = linkedin_sheet,
+  col_types = linkedin_col_types
+))
+```
+
+```{r join-and-save}
+required_join_column <- "Index"
+
+if (!required_join_column %in% names(ksb_alumni) ||
+    !required_join_column %in% names(ksb_linkedin)) {
+  stop("Both sheets must contain an Index column for joining.")
+}
+
+wide_experience_columns <- unlist(lapply(
+  c("company_name", "company_industry", "job_description", "title"),
+  function(prefix) paste0(prefix, "_", 1:27)
+))
+
+expected_alumni_columns <- c(
+  "Index",
+  "City",
+  "State",
+  "Country",
+  "Job_Title",
+  "Employer",
+  "Grad_Year",
+  "Degree",
+  "Degree_Program",
+  "Degree_Major"
+)
+
+expected_linkedin_columns <- c(
+  "Index",
+  "field_of_study",
+  "education_start_year",
+  "education_end_year",
+  "current_job_title",
+  "current_job_description",
+  "current_company_name",
+  "current_company_url",
+  "Company_size",
+  "current_job_industry",
+  "current_job_country",
+  "current_job_location",
+  "current_job_start_date",
+  "employment_type",
+  "is_currently_employed",
+  "current_job_duration_years",
+  "previous_job_title",
+  "previous_job_description",
+  "previous_company_size",
+  "previous_company_name",
+  "previous_job_country",
+  "previous_job_location",
+  "previous_job_Industry",
+  "previous_job_start_date",
+  "previous_job_end_date",
+  "total_experience_years",
+  "Skills",
+  "total_experience_count",
+  "last_scraped_date",
+  wide_experience_columns
+)
+
+add_missing_columns <- function(df, required_columns) {
+  missing_columns <- setdiff(required_columns, names(df))
+
+  for (column_name in missing_columns) {
+    df[[column_name]] <- NA
+  }
+
+  df
+}
+
+missing_alumni_columns <- setdiff(expected_alumni_columns, names(ksb_alumni))
+missing_linkedin_columns <- setdiff(expected_linkedin_columns, names(ksb_linkedin))
+
+ksb_alumni <- add_missing_columns(ksb_alumni, expected_alumni_columns)
+ksb_linkedin <- add_missing_columns(ksb_linkedin, expected_linkedin_columns)
+
+exact_join_key_report <- tibble::tibble(
+  alumni_column = "Index",
+  linkedin_column = "Index",
+  action = "Used as the only merge key"
+)
+
+conceptually_similar_columns_report <- tibble::tribble(
+  ~alumni_column,           ~linkedin_column,                           ~action,
+  "Job_Title",              "current_job_title",                        "Keep both; LinkedIn is richer for modeling",
+  "Employer",               "current_company_name",                     "Keep both",
+  "City / State / Country", "current_job_location / current_job_country", "Keep both; standardize later if needed"
+)
+
+alumni_columns_report <- tibble::tibble(
+  source_sheet = "ksb_alumni",
+  column = expected_alumni_columns,
+  role = "Academic, demographic, or structured context"
+)
+
+linkedin_modeling_columns_report <- tibble::tibble(
+  source_sheet = "ksb_linkedin",
+  column = expected_linkedin_columns,
+  role = if_else(
+    column %in% c(
+      "current_job_title",
+      "current_job_description",
+      "previous_job_title",
+      "previous_job_description",
+      "Skills",
+      wide_experience_columns
+    ),
+    "Text-heavy modeling input",
+    "LinkedIn profile context"
+  )
+)
+
+missing_column_report <- tibble::tibble(
+  sheet = c("alumni", "linkedin"),
+  missing_columns_created = c(
+    paste(missing_alumni_columns, collapse = ", "),
+    paste(missing_linkedin_columns, collapse = ", ")
+  )
+) %>%
+  mutate(
+    missing_columns_created = if_else(
+      missing_columns_created == "",
+      "None",
+      missing_columns_created
+    )
+  )
+
+unmatched_linkedin_rows <- ksb_linkedin %>%
+  anti_join(ksb_alumni, by = "Index")
+
+if (nrow(unmatched_linkedin_rows) > 0) {
+  stop(nrow(unmatched_linkedin_rows), " LinkedIn rows did not match an alumni Index.")
+}
+
+joined_external_validation <- ksb_alumni %>%
+  left_join(ksb_linkedin, by = "Index")
+
+if (nrow(joined_external_validation) != nrow(ksb_alumni)) {
+  stop("Joined row count does not equal alumni row count.")
+}
+
+joined_row_summary <- tibble::tibble(
+  row_type = c("Alumni rows with LinkedIn match", "Alumni rows without LinkedIn match"),
+  row_count = c(
+    sum(joined_external_validation$Index %in% ksb_linkedin$Index),
+    sum(!joined_external_validation$Index %in% ksb_linkedin$Index)
+  )
+)
+
+final_structure_report <- tibble::tribble(
+  ~section, ~columns,
+  "Join key", "Index",
+  "Alumni columns", paste(setdiff(expected_alumni_columns, "Index"), collapse = ", "),
+  "LinkedIn columns", paste(setdiff(expected_linkedin_columns, "Index"), collapse = ", ")
+)
+
+write_csv(joined_external_validation, output_file, na = "")
+
+message("Wrote ", nrow(joined_external_validation), " rows and ",
+        ncol(joined_external_validation), " columns to ", output_file)
+message("Matched ", joined_row_summary$row_count[1],
+        " LinkedIn rows to alumni records.")
+```
+
+```{r exact-join-key}
+exact_join_key_report
+```
+
+```{r conceptually-similar-columns}
+conceptually_similar_columns_report
+```
+
+```{r alumni-columns-introduced}
+alumni_columns_report
+```
+
+```{r linkedin-modeling-columns}
+linkedin_modeling_columns_report
+```
+
+```{r joined-row-summary}
+joined_row_summary
+```
+
+```{r final-structure}
+final_structure_report
+```
+
+```{r joined-rows-preview}
+joined_external_validation %>%
+  filter(Index %in% ksb_linkedin$Index) %>%
+  select(
+    Index,
+    City,
+    State,
+    Country,
+    current_job_country,
+    current_job_location,
+    Job_Title,
+    current_job_title,
+    Employer,
+    current_company_name,
+    Grad_Year,
+    education_end_year,
+    Degree_Major,
+    field_of_study,
+    current_job_description,
+    previous_job_description,
+    Skills
+  ) %>%
+  head(25)
+```
+
+```{r missing-source-column-details}
+missing_source_columns_created <- bind_rows(
+  tibble::tibble(
+    sheet = "alumni",
+    column_created = missing_alumni_columns
+  ),
+  tibble::tibble(
+    sheet = "linkedin",
+    column_created = missing_linkedin_columns
+  )
+)
+
+if (nrow(missing_source_columns_created) == 0) {
+  missing_source_columns_created <- tibble::tibble(
+    sheet = c("alumni", "linkedin"),
+    column_created = "No missing columns were created"
+  )
+}
+
+missing_source_columns_created
+```
+
+```{r preview}
+head(joined_external_validation)
+```

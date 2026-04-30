@@ -208,3 +208,81 @@ write_csv(linkedin_preprocessed_output, preprocessed_output_path)
 
 cat("Preprocessed dataset saved to:", preprocessed_output_path, "\n")
 ```
+
+# External Validation Preprocessing
+
+This section runs the joined KSB alumni + LinkedIn external validation dataset
+through the same preprocessing logic used above. It writes a separate output file
+so the current 5k preprocessing workflow remains unchanged.
+
+```{r preprocess-external-validation-data}
+# Import the prepared external validation dataset from the added preparation step.
+external_prepared_input_path <- "../data/processed/ksb_alumni_linkedin_prepared.csv"
+
+ksb_external_prepared <- read_csv(
+  external_prepared_input_path,
+  show_col_types = FALSE
+)
+
+# Apply the same cleaning rules used for the main modeling dataset, while keeping
+# alumni columns such as degree, graduation year, and location as metadata.
+ksb_external_preprocessed <- ksb_external_prepared |>
+  rename(
+    skills = Skills
+  ) |>
+  mutate(
+    linkedin_url = clean_identifier(linkedin_url),
+    headline = clean_text(headline),
+    field_of_study = clean_text(field_of_study),
+    current_job_title = clean_text(current_job_title),
+    current_job_description = clean_text(current_job_description),
+    current_company_name = clean_text(current_company_name),
+    current_job_industry = clean_category(current_job_industry),
+    current_job_country = clean_category(current_job_country),
+    current_job_location = clean_category(current_job_location),
+    previous_job_title = clean_text(previous_job_title),
+    previous_job_description = clean_text(previous_job_description),
+    skills = ifelse(is.na(skills), "", as.character(skills)),
+    skills = tolower(skills),
+    skills = gsub("\\s*[,;|]\\s*", ",", skills),
+    skills = trimws(skills),
+    total_experience_years = ifelse(
+      is.na(total_experience_years),
+      0,
+      as.numeric(total_experience_years)
+    ),
+    total_experience_count = ifelse(
+      is.na(total_experience_count),
+      0,
+      as.numeric(total_experience_count)
+    ),
+    has_current_job_description = ifelse(current_job_description == "", 0, 1),
+    has_previous_job_description = ifelse(previous_job_description == "", 0, 1),
+    profile_text = clean_text(paste(
+      headline,
+      current_job_title,
+      current_job_description,
+      current_company_name,
+      previous_job_title,
+      previous_job_description,
+      sep = " "
+    ))
+  ) |>
+  filter(linkedin_url != "") |>
+  distinct(linkedin_url, .keep_all = TRUE) |>
+  mutate(
+    skills_list = split_skills(skills),
+    skill_count = count_skills(skills_list)
+  )
+
+external_preprocessed_output_path <- "../data/processed/ksb_alumni_linkedin_preprocessed.csv"
+
+ksb_external_preprocessed_output <- ksb_external_preprocessed |>
+  mutate(skills_list = collapse_skills(skills_list))
+
+write_csv(ksb_external_preprocessed_output, external_preprocessed_output_path)
+
+cat("External validation preprocessed shape:", dim(ksb_external_preprocessed), "\n")
+cat("External validation preprocessed dataset saved to:", external_preprocessed_output_path, "\n")
+glimpse(ksb_external_preprocessed)
+```

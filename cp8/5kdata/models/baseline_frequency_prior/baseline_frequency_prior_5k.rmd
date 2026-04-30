@@ -4,11 +4,20 @@ author: "Team"
 output: html_document
 ---
 
+## File Overview
+
+This notebook trains the simplest 5k model: a frequency-prior baseline. It predicts each skill using that skill's training-set frequency, tunes decision thresholds on validation data, evaluates the baseline, and saves the results.
+
 This notebook trains and evaluates the baseline frequency-prior model for the
 5k LinkedIn skills extraction dataset. The model predicts each skill using its
 training-set prevalence.
 
+The setup chunk controls output formatting and loads the packages used for table manipulation and metric reporting.
+
+**Summary:** This chunk sets global R Markdown options so rendered reports show code while suppressing warnings and messages. It also loads any packages needed immediately by this notebook.
+
 ```{r setup, include=FALSE}
+# Set notebook output options and load required packages.
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 
 library(dplyr)
@@ -17,7 +26,12 @@ library(tibble)
 
 # Load Encoded 5k Inputs
 
+This block loads the saved train, validation, and test split objects from the encoding step. It extracts TF-IDF feature matrices, target label matrices, and retained skill names, then prints dimensions for a quick shape check.
+
+**Summary:** This chunk loads the encoded train, validation, and test objects produced by feature encoding. It extracts input matrices, target matrices, and skill labels for the model notebook.
+
 ```{r load-data}
+# Load encoded feature matrices and multi-label targets.
 project_root <- normalizePath(file.path("..", "..", "..", ".."))
 split_input_path <- file.path(project_root, "data", "processed", "train_validation_test_split.rds")
 
@@ -43,8 +57,13 @@ cat("y_test dimensions:", dim(y_test), "\n")
 
 # Modeling Scope
 
+This block limits the model to the 100 most common skill labels. The baseline is simple, but using the same label scope as the other model notebooks keeps results comparable.
+
+**Summary:** This chunk limits modeling to the most frequent skill labels. The cap keeps training computationally manageable and ensures all compared models use the same target set.
+
 ```{r modeling-scope}
-max_model_labels <- 25
+# Select the most frequent skill labels for this model run.
+max_model_labels <- 100
 
 label_prevalence <- colMeans(y_train)
 label_order <- order(label_prevalence, decreasing = TRUE)
@@ -61,7 +80,12 @@ print(retained_skills)
 
 # Helper Functions
 
+This block defines reusable helpers for multi-label evaluation, probability thresholding, and validation-set threshold tuning. These functions convert probability scores into binary skill predictions and calculate micro/macro precision, recall, and F1.
+
+**Summary:** This chunk defines reusable helper functions for multi-label evaluation, probability thresholding, class checks, and validation-set threshold tuning. These helpers keep scoring consistent across skill labels.
+
 ```{r helper-functions}
+# Define metric, prediction, and threshold tuning helpers.
 safe_divide <- function(num, den) {
   ifelse(den == 0, 0, num / den)
 }
@@ -152,7 +176,12 @@ tune_label_thresholds <- function(y_true, prob_matrix, grid = seq(0.05, 0.95, by
 
 # Train Baseline
 
+This block builds the baseline predictions. It uses each skill's training-set prevalence as the predicted probability for every validation and test profile, tunes one threshold per skill on validation data, and evaluates the resulting binary predictions.
+
+**Summary:** This chunk trains the frequency-prior baseline. It predicts each skill using training-set prevalence, tunes thresholds on validation data, and evaluates validation and test performance.
+
 ```{r train-baseline}
+# Predict each skill with its training-set frequency and evaluate the baseline.
 skill_prevalence <- colMeans(y_train)
 
 baseline_probs_validation <- matrix(
@@ -191,7 +220,12 @@ baseline_test_metrics
 
 # Save Outputs
 
+This block saves the baseline metrics, probabilities, predictions, thresholds, and retained skill labels so they can be reused in the model comparison summary.
+
+**Summary:** This chunk saves this model's outputs, including metrics, thresholds, predictions, probabilities, retained labels, and fitted artifacts where applicable. Saving these files supports later comparison and reporting.
+
 ```{r save-outputs}
+# Write baseline artifacts and metric CSV files to the model output folder.
 model_output_dir <- file.path(project_root, "data", "processed", "5k_model_outputs", "baseline_frequency_prior")
 dir.create(model_output_dir, recursive = TRUE, showWarnings = FALSE)
 

@@ -288,6 +288,127 @@ cat(&quot;Prepared dataset shape:&quot;, dim(linkedin_prepared), &quot;\n&quot;)
 ## $ Skills                   &lt;chr&gt; &quot;Communication, Project Management, Teamwork,…
 ## $ total_experience_count   &lt;dbl&gt; 8, 4, 3, 4, 6, 6, 15, 5, 4, 2, 4, 6, 4, 13, 5…</code></pre>
 </div>
+<div id="external-validation-data-preparation" class="section level1">
+<h1>External Validation Data Preparation</h1>
+<p>This section prepares the joined KSB alumni + LinkedIn external validation file for the same downstream preprocessing workflow. It does not change the main 5k workflow above; it writes a separate prepared CSV for external validation.</p>
+<pre class="r"><code># Import the joined external validation dataset created in cleaningScripts.
+external_validation_input_path &lt;- &quot;../data/externalvalidation/ksb_alumni_linkedin_joined.csv&quot;
+
+ksb_external_validation &lt;- read_csv(
+  external_validation_input_path,
+  show_col_types = FALSE
+)
+
+external_validation_columns &lt;- c(
+  &quot;City&quot;,
+  &quot;State&quot;,
+  &quot;Country&quot;,
+  &quot;Job_Title&quot;,
+  &quot;Employer&quot;,
+  &quot;Grad_Year&quot;,
+  &quot;Degree&quot;,
+  &quot;Degree_Program&quot;,
+  &quot;Degree_Major&quot;,
+  &quot;Index&quot;,
+  &quot;field_of_study&quot;,
+  &quot;education_start_year&quot;,
+  &quot;education_end_year&quot;,
+  &quot;current_job_title&quot;,
+  &quot;current_job_description&quot;,
+  &quot;current_company_name&quot;,
+  &quot;current_company_url&quot;,
+  &quot;current_job_industry&quot;,
+  &quot;current_job_country&quot;,
+  &quot;current_job_location&quot;,
+  &quot;current_job_start_date&quot;,
+  &quot;previous_job_title&quot;,
+  &quot;previous_job_description&quot;,
+  &quot;previous_company_name&quot;,
+  &quot;total_experience_years&quot;,
+  &quot;Skills&quot;,
+  &quot;total_experience_count&quot;
+)
+
+# Create any expected external-validation columns that are absent so the rest of
+# the CP8 pipeline always receives the same schema.
+missing_external_validation_columns &lt;- setdiff(
+  external_validation_columns,
+  names(ksb_external_validation)
+)
+
+for (column_name in missing_external_validation_columns) {
+  ksb_external_validation[[column_name]] &lt;- NA
+}
+
+# The external validation file does not include linkedin_url/headline in the same
+# way as the raw 5k scrape, so create stable workflow-compatible fields.
+if (!&quot;linkedin_url&quot; %in% names(ksb_external_validation)) {
+  ksb_external_validation &lt;- ksb_external_validation |&gt;
+    mutate(linkedin_url = paste0(&quot;external_validation_index_&quot;, Index))
+}
+
+if (!&quot;headline&quot; %in% names(ksb_external_validation)) {
+  ksb_external_validation &lt;- ksb_external_validation |&gt;
+    mutate(headline = coalesce(as.character(current_job_title), as.character(Job_Title), &quot;&quot;))
+}
+
+ksb_external_validation_prepared &lt;- ksb_external_validation |&gt;
+  mutate(
+    linkedin_url = as.character(linkedin_url),
+    headline = as.character(headline),
+    Skills = as.character(Skills)
+  ) |&gt;
+  # External validation labels come from Skills, so remove rows without labels.
+  filter(!is.na(Skills), trimws(Skills) != &quot;&quot;) |&gt;
+  select(
+    linkedin_url,
+    headline,
+    all_of(external_validation_columns)
+  )
+
+external_prepared_output_path &lt;- &quot;../data/processed/ksb_alumni_linkedin_prepared.csv&quot;
+write_csv(ksb_external_validation_prepared, external_prepared_output_path)
+
+cat(&quot;External validation prepared shape:&quot;, dim(ksb_external_validation_prepared), &quot;\n&quot;)</code></pre>
+<pre><code>## External validation prepared shape: 359 29</code></pre>
+<pre class="r"><code>cat(&quot;External validation prepared dataset saved to:&quot;, external_prepared_output_path, &quot;\n&quot;)</code></pre>
+<pre><code>## External validation prepared dataset saved to: ../data/processed/ksb_alumni_linkedin_prepared.csv</code></pre>
+<pre class="r"><code>cat(&quot;Missing expected external-validation columns created as NA:&quot;,
+    length(missing_external_validation_columns), &quot;\n&quot;)</code></pre>
+<pre><code>## Missing expected external-validation columns created as NA: 0</code></pre>
+<pre class="r"><code>glimpse(ksb_external_validation_prepared)</code></pre>
+<pre><code>## Rows: 359
+## Columns: 29
+## $ linkedin_url             &lt;chr&gt; &quot;external_validation_index_1&quot;, &quot;external_vali…
+## $ headline                 &lt;chr&gt; &quot;Consultant: Data Science&quot;, &quot;Digital Tranform…
+## $ City                     &lt;chr&gt; &quot;Washington&quot;, &quot;Unknown&quot;, &quot;Chicago&quot;, &quot;Bogot√°&quot;…
+## $ State                    &lt;chr&gt; &quot;District of Columbia&quot;, &quot;Unknown&quot;, &quot;Illinois&quot;…
+## $ Country                  &lt;chr&gt; &quot;United States&quot;, &quot;Unknown&quot;, &quot;United States&quot;, …
+## $ Job_Title                &lt;chr&gt; &quot;Knowledge Management Specialist&quot;, &quot;Consultan…
+## $ Employer                 &lt;chr&gt; &quot;Usfalcon&quot;, &quot;World Bank&quot;, &quot;Axon&quot;, &quot;Unknown&quot;, …
+## $ Grad_Year                &lt;dbl&gt; 2019, 2020, 2020, 2020, 2019, 2019, 2019, 201…
+## $ Degree                   &lt;chr&gt; &quot;Master of Science&quot;, &quot;Master of Business Admi…
+## $ Degree_Program           &lt;chr&gt; &quot;Analytics (MS) [Online]&quot;, &quot;Business Administ…
+## $ Degree_Major             &lt;chr&gt; &quot;Analytics&quot;, &quot;Business Administration&quot;, &quot;Acco…
+## $ Index                    &lt;dbl&gt; 1, 2, 3, 5, 7, 9, 10, 12, 13, 14, 16, 17, 18,…
+## $ field_of_study           &lt;chr&gt; &quot;Master of Science in Analytics&quot;, &quot;Master of …
+## $ education_start_year     &lt;dbl&gt; 2017, 0, 2018, 2023, 2016, 2017, 2018, 0, 201…
+## $ education_end_year       &lt;dbl&gt; 2019, 0, 2020, 2025, 2019, 2019, 2019, 0, 202…
+## $ current_job_title        &lt;chr&gt; &quot;Consultant: Data Science&quot;, &quot;Digital Tranform…
+## $ current_job_description  &lt;chr&gt; NA, NA, NA, NA, &quot;‚Ä¢ Managed end-to-end vendo…
+## $ current_company_name     &lt;chr&gt; &quot;Kearney &amp; Company&quot;, &quot;The World Bank&quot;, &quot;Axon&quot;…
+## $ current_company_url      &lt;chr&gt; &quot;https://www.kearneyco.com/&quot;, &quot;http://www.wor…
+## $ current_job_industry     &lt;chr&gt; &quot;Accounting&quot;, &quot;International Trade and Develo…
+## $ current_job_country      &lt;chr&gt; &quot;United States&quot;, &quot;United States&quot;, &quot;United Sta…
+## $ current_job_location     &lt;chr&gt; NA, &quot;Washington, DC&quot;, &quot;Scottsdale, Arizona, U…
+## $ current_job_start_date   &lt;dttm&gt; 2022-12-01, 2023-03-01, 2024-08-01, 2026-01-…
+## $ previous_job_title       &lt;chr&gt; &quot;Knowledge Management Specialist&quot;, &quot;Senior St…
+## $ previous_job_description &lt;chr&gt; NA, NA, NA, NA, &quot;‚Ä¢ Managed vendor technolog…
+## $ previous_company_name    &lt;chr&gt; &quot;USfalcon&quot;, &quot;Accenture&quot;, &quot;Deloitte&quot;, &quot;Interna…
+## $ total_experience_years   &lt;dbl&gt; 15.3, 9.6, 10.6, 10.3, 8.8, 8.3, 15.8, 9.2, 4…
+## $ Skills                   &lt;chr&gt; &quot;Public Policy, Public Health, Community Heal…
+## $ total_experience_count   &lt;dbl&gt; 10, 7, 12, 21, 6, 12, 9, 7, 2, 6, 12, 9, 7, 4…</code></pre>
+</div>
 
 
 

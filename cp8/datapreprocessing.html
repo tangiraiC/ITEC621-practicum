@@ -447,6 +447,117 @@ write_csv(linkedin_preprocessed_output, preprocessed_output_path)
 cat(&quot;Preprocessed dataset saved to:&quot;, preprocessed_output_path, &quot;\n&quot;)</code></pre>
 <pre><code>## Preprocessed dataset saved to: ../data/processed/linkedin_full_5865_preprocessed.csv</code></pre>
 </div>
+<div id="external-validation-preprocessing" class="section level1">
+<h1>External Validation Preprocessing</h1>
+<p>This section runs the joined KSB alumni + LinkedIn external validation dataset through the same preprocessing logic used above. It writes a separate output file so the current 5k preprocessing workflow remains unchanged.</p>
+<pre class="r"><code># Import the prepared external validation dataset from the added preparation step.
+external_prepared_input_path &lt;- &quot;../data/processed/ksb_alumni_linkedin_prepared.csv&quot;
+
+ksb_external_prepared &lt;- read_csv(
+  external_prepared_input_path,
+  show_col_types = FALSE
+)
+
+# Apply the same cleaning rules used for the main modeling dataset, while keeping
+# alumni columns such as degree, graduation year, and location as metadata.
+ksb_external_preprocessed &lt;- ksb_external_prepared |&gt;
+  rename(
+    skills = Skills
+  ) |&gt;
+  mutate(
+    linkedin_url = clean_identifier(linkedin_url),
+    headline = clean_text(headline),
+    field_of_study = clean_text(field_of_study),
+    current_job_title = clean_text(current_job_title),
+    current_job_description = clean_text(current_job_description),
+    current_company_name = clean_text(current_company_name),
+    current_job_industry = clean_category(current_job_industry),
+    current_job_country = clean_category(current_job_country),
+    current_job_location = clean_category(current_job_location),
+    previous_job_title = clean_text(previous_job_title),
+    previous_job_description = clean_text(previous_job_description),
+    skills = ifelse(is.na(skills), &quot;&quot;, as.character(skills)),
+    skills = tolower(skills),
+    skills = gsub(&quot;\\s*[,;|]\\s*&quot;, &quot;,&quot;, skills),
+    skills = trimws(skills),
+    total_experience_years = ifelse(
+      is.na(total_experience_years),
+      0,
+      as.numeric(total_experience_years)
+    ),
+    total_experience_count = ifelse(
+      is.na(total_experience_count),
+      0,
+      as.numeric(total_experience_count)
+    ),
+    has_current_job_description = ifelse(current_job_description == &quot;&quot;, 0, 1),
+    has_previous_job_description = ifelse(previous_job_description == &quot;&quot;, 0, 1),
+    profile_text = clean_text(paste(
+      headline,
+      current_job_title,
+      current_job_description,
+      current_company_name,
+      previous_job_title,
+      previous_job_description,
+      sep = &quot; &quot;
+    ))
+  ) |&gt;
+  filter(linkedin_url != &quot;&quot;) |&gt;
+  distinct(linkedin_url, .keep_all = TRUE) |&gt;
+  mutate(
+    skills_list = split_skills(skills),
+    skill_count = count_skills(skills_list)
+  )
+
+external_preprocessed_output_path &lt;- &quot;../data/processed/ksb_alumni_linkedin_preprocessed.csv&quot;
+
+ksb_external_preprocessed_output &lt;- ksb_external_preprocessed |&gt;
+  mutate(skills_list = collapse_skills(skills_list))
+
+write_csv(ksb_external_preprocessed_output, external_preprocessed_output_path)
+
+cat(&quot;External validation preprocessed shape:&quot;, dim(ksb_external_preprocessed), &quot;\n&quot;)</code></pre>
+<pre><code>## External validation preprocessed shape: 359 34</code></pre>
+<pre class="r"><code>cat(&quot;External validation preprocessed dataset saved to:&quot;, external_preprocessed_output_path, &quot;\n&quot;)</code></pre>
+<pre><code>## External validation preprocessed dataset saved to: ../data/processed/ksb_alumni_linkedin_preprocessed.csv</code></pre>
+<pre class="r"><code>glimpse(ksb_external_preprocessed)</code></pre>
+<pre><code>## Rows: 359
+## Columns: 34
+## $ linkedin_url                 &lt;chr&gt; &quot;external_validation_index_1&quot;, &quot;external_…
+## $ headline                     &lt;chr&gt; &quot;consultant data science&quot;, &quot;digital tranf…
+## $ City                         &lt;chr&gt; &quot;Washington&quot;, &quot;Unknown&quot;, &quot;Chicago&quot;, &quot;Bogo…
+## $ State                        &lt;chr&gt; &quot;District of Columbia&quot;, &quot;Unknown&quot;, &quot;Illin…
+## $ Country                      &lt;chr&gt; &quot;United States&quot;, &quot;Unknown&quot;, &quot;United State…
+## $ Job_Title                    &lt;chr&gt; &quot;Knowledge Management Specialist&quot;, &quot;Consu…
+## $ Employer                     &lt;chr&gt; &quot;Usfalcon&quot;, &quot;World Bank&quot;, &quot;Axon&quot;, &quot;Unknow…
+## $ Grad_Year                    &lt;dbl&gt; 2019, 2020, 2020, 2020, 2019, 2019, 2019,…
+## $ Degree                       &lt;chr&gt; &quot;Master of Science&quot;, &quot;Master of Business …
+## $ Degree_Program               &lt;chr&gt; &quot;Analytics (MS) [Online]&quot;, &quot;Business Admi…
+## $ Degree_Major                 &lt;chr&gt; &quot;Analytics&quot;, &quot;Business Administration&quot;, &quot;…
+## $ Index                        &lt;dbl&gt; 1, 2, 3, 5, 7, 9, 10, 12, 13, 14, 16, 17,…
+## $ field_of_study               &lt;chr&gt; &quot;master of science in analytics&quot;, &quot;master…
+## $ education_start_year         &lt;dbl&gt; 2017, 0, 2018, 2023, 2016, 2017, 2018, 0,…
+## $ education_end_year           &lt;dbl&gt; 2019, 0, 2020, 2025, 2019, 2019, 2019, 0,…
+## $ current_job_title            &lt;chr&gt; &quot;consultant data science&quot;, &quot;digital tranf…
+## $ current_job_description      &lt;chr&gt; &quot;&quot;, &quot;&quot;, &quot;&quot;, &quot;&quot;, &quot;ä managed end to end ven…
+## $ current_company_name         &lt;chr&gt; &quot;kearney company&quot;, &quot;the world bank&quot;, &quot;axo…
+## $ current_company_url          &lt;chr&gt; &quot;https://www.kearneyco.com/&quot;, &quot;http://www…
+## $ current_job_industry         &lt;chr&gt; &quot;accounting&quot;, &quot;international trade and de…
+## $ current_job_country          &lt;chr&gt; &quot;united states&quot;, &quot;united states&quot;, &quot;united…
+## $ current_job_location         &lt;chr&gt; &quot;unknown&quot;, &quot;washington, dc&quot;, &quot;scottsdale,…
+## $ current_job_start_date       &lt;dttm&gt; 2022-12-01, 2023-03-01, 2024-08-01, 2026…
+## $ previous_job_title           &lt;chr&gt; &quot;knowledge management specialist&quot;, &quot;senio…
+## $ previous_job_description     &lt;chr&gt; &quot;&quot;, &quot;&quot;, &quot;&quot;, &quot;&quot;, &quot;ä managed vendor technol…
+## $ previous_company_name        &lt;chr&gt; &quot;USfalcon&quot;, &quot;Accenture&quot;, &quot;Deloitte&quot;, &quot;Int…
+## $ total_experience_years       &lt;dbl&gt; 15.3, 9.6, 10.6, 10.3, 8.8, 8.3, 15.8, 9.…
+## $ skills                       &lt;chr&gt; &quot;public policy,public health,community he…
+## $ total_experience_count       &lt;dbl&gt; 10, 7, 12, 21, 6, 12, 9, 7, 2, 6, 12, 9, …
+## $ has_current_job_description  &lt;dbl&gt; 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1,…
+## $ has_previous_job_description &lt;dbl&gt; 0, 0, 0, 0, 1, 0, 1, 1, 0, 0, 0, 1, 0, 1,…
+## $ profile_text                 &lt;chr&gt; &quot;consultant data science consultant data …
+## $ skills_list                  &lt;list&gt; &lt;&quot;public policy&quot;, &quot;public health&quot;, &quot;comm…
+## $ skill_count                  &lt;int&gt; 12, 16, 20, 20, 20, 20, 15, 20, 4, 12, 20…</code></pre>
+</div>
 
 
 

@@ -67,7 +67,7 @@ This block limits the modeling run to the most common skill labels. The full enc
 
 ```{r modeling-scope}
 # Select the most frequent labels so the full modeling workflow runs reliably.
-max_model_labels <- 25
+max_model_labels <- 100
 
 label_prevalence <- colMeans(y_train)
 label_order <- order(label_prevalence, decreasing = TRUE)

@@ -1,0 +1,489 @@
+---
+title: "External Validation Modeling"
+author: "Lincoln Chanakira"
+output: html_document
+---
+
+This notebook runs the KSB alumni + LinkedIn external validation dataset through
+all saved 5k models. It does not retrain the models and does not change the
+existing CP8 modeling workflow. It loads the already encoded external validation
+TF-IDF matrix and evaluates each saved model against the external validation
+skill labels.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+# Load Packages
+
+```{r packages}
+library(readr)
+library(dplyr)
+library(tibble)
+library(purrr)
+library(Matrix)
+library(glmnet)
+library(xgboost)
+library(class)
+```
+
+# File Paths
+
+```{r paths}
+processed_dir <- "../data/processed"
+
+split_input_path <- file.path(processed_dir, "train_validation_test_split.rds")
+external_tfidf_path <- file.path(processed_dir, "ksb_alumni_linkedin_tfidf.rds")
+external_targets_path <- file.path(processed_dir, "ksb_alumni_linkedin_multilabel_targets.csv")
+external_profiles_path <- file.path(processed_dir, "ksb_alumni_linkedin_encoded_profiles.csv")
+
+model_output_root <- file.path(processed_dir, "5k_model_outputs")
+external_output_root <- file.path(processed_dir, "external_validation_model_outputs")
+
+dir.create(external_output_root, recursive = TRUE, showWarnings = FALSE)
+```
+
+# Load Training and External Validation Data
+
+```{r load-data}
+# Load training split objects because KNN needs the original training feature
+# matrix and labels to classify new external validation profiles.
+split_objects <- readRDS(split_input_path)
+
+X_train <- split_objects$X_train
+y_train_full <- as.matrix(split_objects$y_train)
+
+# Load external validation model inputs created by model_input_encoding.rmd.
+X_external <- readRDS(external_tfidf_path)
+external_targets <- read_csv(external_targets_path, show_col_types = FALSE)
+external_profiles <- read_csv(external_profiles_path, show_col_types = FALSE)
+
+cat("Training feature matrix:", dim(X_train), "\n")
+cat("External validation feature matrix:", dim(X_external), "\n")
+cat("External validation targets:", dim(external_targets), "\n")
+cat("External validation profiles:", dim(external_profiles), "\n")
+```
+
+# Helper Functions
+
+```{r helper-functions}
+# Divide safely so metrics return zero instead of NaN when a model predicts no
+# positives or a label has no positives.
+safe_divide <- function(num, den) {
+  ifelse(den == 0, 0, num / den)
+}
+
+evaluate_multilabel <- function(y_true, y_pred_binary) {
+  y_true <- as.matrix(y_true)
+  y_pred_binary <- as.matrix(y_pred_binary)
+
+  tp_micro <- sum((y_true == 1) & (y_pred_binary == 1))
+  fp_micro <- sum((y_true == 0) & (y_pred_binary == 1))
+  fn_micro <- sum((y_true == 1) & (y_pred_binary == 0))
+
+  precision_micro <- safe_divide(tp_micro, tp_micro + fp_micro)
+  recall_micro <- safe_divide(tp_micro, tp_micro + fn_micro)
+  f1_micro <- safe_divide(
+    2 * precision_micro * recall_micro,
+    precision_micro + recall_micro
+  )
+
+  precision_by_label <- numeric(ncol(y_true))
+  recall_by_label <- numeric(ncol(y_true))
+  f1_by_label <- numeric(ncol(y_true))
+
+  for (j in seq_len(ncol(y_true))) {
+    tp <- sum((y_true[, j] == 1) & (y_pred_binary[, j] == 1))
+    fp <- sum((y_true[, j] == 0) & (y_pred_binary[, j] == 1))
+    fn <- sum((y_true[, j] == 1) & (y_pred_binary[, j] == 0))
+
+    p <- safe_divide(tp, tp + fp)
+    r <- safe_divide(tp, tp + fn)
+    f <- safe_divide(2 * p * r, p + r)
+
+    precision_by_label[j] <- p
+    recall_by_label[j] <- r
+    f1_by_label[j] <- f
+  }
+
+  tibble(
+    precision_micro = precision_micro,
+    recall_micro = recall_micro,
+    f1_micro = f1_micro,
+    precision_macro = mean(precision_by_label, na.rm = TRUE),
+    recall_macro = mean(recall_by_label, na.rm = TRUE),
+    f1_macro = mean(f1_by_label, na.rm = TRUE)
+  )
+}
+
+predict_binary_from_probs <- function(prob_matrix, threshold = 0.50) {
+  prob_matrix <- as.matrix(prob_matrix)
+
+  if (length(threshold) == 1) {
+    return(ifelse(prob_matrix >= threshold, 1L, 0L))
+  }
+
+  threshold_matrix <- matrix(
+    rep(threshold, each = nrow(prob_matrix)),
+    nrow = nrow(prob_matrix),
+    byrow = FALSE
+  )
+
+  ifelse(prob_matrix >= threshold_matrix, 1L, 0L)
+}
+
+get_thresholds <- function(model_results, retained_skills) {
+  thresholds <- model_results$thresholds
+
+  if (is.null(names(thresholds))) {
+    names(thresholds) <- model_results$retained_skills
+  }
+
+  thresholds <- thresholds[retained_skills]
+  thresholds[is.na(thresholds)] <- 0.50
+  thresholds
+}
+
+make_prediction_summary <- function(y_true, pred_binary, prob_matrix) {
+  tibble(
+    skill = colnames(y_true),
+    actual_count = as.numeric(colSums(y_true)),
+    predicted_count = as.numeric(colSums(pred_binary)),
+    mean_probability = as.numeric(colMeans(prob_matrix))
+  ) |>
+    arrange(desc(actual_count), desc(predicted_count))
+}
+
+save_external_model_outputs <- function(model_slug, model_name, probs, preds, metrics, summary) {
+  model_dir <- file.path(external_output_root, model_slug)
+  dir.create(model_dir, recursive = TRUE, showWarnings = FALSE)
+
+  saveRDS(
+    list(
+      model = model_name,
+      external_metrics = metrics,
+      external_probabilities = probs,
+      external_predictions = preds,
+      prediction_summary = summary,
+      retained_skills = colnames(preds)
+    ),
+    file.path(model_dir, paste0(model_slug, "_external_validation_results.rds"))
+  )
+
+  write_csv(metrics, file.path(model_dir, "external_validation_metrics.csv"))
+  write_csv(summary, file.path(model_dir, "external_prediction_summary.csv"))
+}
+```
+
+# Align External Targets
+
+```{r align-external-targets}
+# Use the same 25 modeled labels saved by the model notebooks. All models use
+# the same retained skill order, so the external target matrix is aligned once.
+baseline_results <- readRDS(file.path(
+  model_output_root,
+  "baseline_frequency_prior",
+  "baseline_frequency_prior_5k_results.rds"
+))
+
+retained_skills <- baseline_results$retained_skills
+
+missing_external_labels <- setdiff(retained_skills, names(external_targets))
+if (length(missing_external_labels) > 0) {
+  stop(
+    "External targets are missing modeled skill labels: ",
+    paste(missing_external_labels, collapse = ", ")
+  )
+}
+
+y_external <- external_targets |>
+  select(all_of(retained_skills)) |>
+  as.matrix()
+
+cat("External labels evaluated:", ncol(y_external), "\n")
+print(retained_skills)
+```
+
+# Baseline Frequency Prior
+
+```{r run-baseline-external-validation}
+# The baseline model predicts each skill using the training-set prevalence.
+baseline_thresholds <- get_thresholds(baseline_results, retained_skills)
+baseline_prevalence <- colMeans(y_train_full[, retained_skills, drop = FALSE])
+
+baseline_external_probs <- matrix(
+  rep(baseline_prevalence, each = nrow(y_external)),
+  nrow = nrow(y_external),
+  byrow = FALSE
+)
+colnames(baseline_external_probs) <- retained_skills
+
+baseline_external_pred <- predict_binary_from_probs(
+  baseline_external_probs,
+  threshold = baseline_thresholds
+)
+colnames(baseline_external_pred) <- retained_skills
+
+baseline_external_metrics <- evaluate_multilabel(
+  y_external,
+  baseline_external_pred
+) |>
+  mutate(model = "Baseline Frequency Prior", .before = 1)
+
+baseline_external_summary <- make_prediction_summary(
+  y_external,
+  baseline_external_pred,
+  baseline_external_probs
+)
+
+save_external_model_outputs(
+  "baseline_frequency_prior",
+  "Baseline Frequency Prior",
+  baseline_external_probs,
+  baseline_external_pred,
+  baseline_external_metrics,
+  baseline_external_summary
+)
+
+baseline_external_metrics
+```
+
+# Logistic Regression
+
+```{r run-logistic-external-validation}
+logit_results <- readRDS(file.path(
+  model_output_root,
+  "logistic_regression",
+  "logistic_regression_5k_results.rds"
+))
+
+logit_thresholds <- get_thresholds(logit_results, retained_skills)
+
+logit_external_probs <- matrix(
+  0,
+  nrow = nrow(X_external),
+  ncol = length(retained_skills)
+)
+colnames(logit_external_probs) <- retained_skills
+
+for (j in seq_along(retained_skills)) {
+  model_j <- logit_results$models[[j]]
+
+  logit_external_probs[, j] <- as.numeric(
+    predict(model_j, newx = X_external, s = "lambda.min", type = "response")
+  )
+}
+
+logit_external_pred <- predict_binary_from_probs(
+  logit_external_probs,
+  threshold = logit_thresholds
+)
+colnames(logit_external_pred) <- retained_skills
+
+logit_external_metrics <- evaluate_multilabel(
+  y_external,
+  logit_external_pred
+) |>
+  mutate(model = "Logistic Regression", .before = 1)
+
+logit_external_summary <- make_prediction_summary(
+  y_external,
+  logit_external_pred,
+  logit_external_probs
+)
+
+save_external_model_outputs(
+  "logistic_regression",
+  "Logistic Regression",
+  logit_external_probs,
+  logit_external_pred,
+  logit_external_metrics,
+  logit_external_summary
+)
+
+logit_external_metrics
+```
+
+# KNN
+
+```{r run-knn-external-validation}
+knn_results <- readRDS(file.path(
+  model_output_root,
+  "knn",
+  "knn_5k_results.rds"
+))
+
+knn_thresholds <- get_thresholds(knn_results, retained_skills)
+
+# Reuse the KNN feature selection and scaling parameters saved from training.
+top_feature_indices <- knn_results$top_feature_indices
+X_train_dense_raw <- as.matrix(X_train[, top_feature_indices])
+X_external_dense_raw <- as.matrix(X_external[, top_feature_indices])
+
+X_train_dense <- scale(
+  X_train_dense_raw,
+  center = knn_results$center,
+  scale = knn_results$scale
+)
+X_external_dense <- scale(
+  X_external_dense_raw,
+  center = knn_results$center,
+  scale = knn_results$scale
+)
+
+knn_external_probs <- matrix(
+  0,
+  nrow = nrow(X_external_dense),
+  ncol = length(retained_skills)
+)
+colnames(knn_external_probs) <- retained_skills
+
+for (j in seq_along(retained_skills)) {
+  y_j <- y_train_full[, retained_skills[j]]
+
+  if (length(unique(y_j)) == 2) {
+    train_labels_factor <- factor(y_j, levels = c(0, 1))
+
+    pred_external <- knn(
+      train = X_train_dense,
+      test = X_external_dense,
+      cl = train_labels_factor,
+      k = knn_results$k_value,
+      prob = TRUE
+    )
+
+    pred_external_char <- as.character(pred_external)
+    pred_external_prob <- ifelse(
+      pred_external_char == "1",
+      attr(pred_external, "prob"),
+      1 - attr(pred_external, "prob")
+    )
+
+    knn_external_probs[, j] <- pred_external_prob
+  } else {
+    knn_external_probs[, j] <- mean(y_j)
+  }
+}
+
+knn_external_pred <- predict_binary_from_probs(
+  knn_external_probs,
+  threshold = knn_thresholds
+)
+colnames(knn_external_pred) <- retained_skills
+
+knn_external_metrics <- evaluate_multilabel(
+  y_external,
+  knn_external_pred
+) |>
+  mutate(model = "KNN", .before = 1)
+
+knn_external_summary <- make_prediction_summary(
+  y_external,
+  knn_external_pred,
+  knn_external_probs
+)
+
+save_external_model_outputs(
+  "knn",
+  "KNN",
+  knn_external_probs,
+  knn_external_pred,
+  knn_external_metrics,
+  knn_external_summary
+)
+
+knn_external_metrics
+```
+
+# XGBoost
+
+```{r run-xgboost-external-validation}
+xgb_results <- readRDS(file.path(
+  model_output_root,
+  "xgboost",
+  "xgboost_5k_results.rds"
+))
+
+xgb_thresholds <- get_thresholds(xgb_results, retained_skills)
+xgb_external_dmatrix <- xgb.DMatrix(data = X_external)
+
+xgb_external_probs <- matrix(
+  0,
+  nrow = nrow(X_external),
+  ncol = length(retained_skills)
+)
+colnames(xgb_external_probs) <- retained_skills
+
+for (j in seq_along(retained_skills)) {
+  model_j <- xgb_results$models[[j]]
+  xgb_external_probs[, j] <- predict(model_j, newdata = xgb_external_dmatrix)
+}
+
+xgb_external_pred <- predict_binary_from_probs(
+  xgb_external_probs,
+  threshold = xgb_thresholds
+)
+colnames(xgb_external_pred) <- retained_skills
+
+xgb_external_metrics <- evaluate_multilabel(
+  y_external,
+  xgb_external_pred
+) |>
+  mutate(model = "XGBoost", .before = 1)
+
+xgb_external_summary <- make_prediction_summary(
+  y_external,
+  xgb_external_pred,
+  xgb_external_probs
+)
+
+save_external_model_outputs(
+  "xgboost",
+  "XGBoost",
+  xgb_external_probs,
+  xgb_external_pred,
+  xgb_external_metrics,
+  xgb_external_summary
+)
+
+xgb_external_metrics
+```
+
+# Compare External Validation Results
+
+```{r compare-external-validation-results}
+external_validation_results <- bind_rows(
+  baseline_external_metrics,
+  logit_external_metrics,
+  knn_external_metrics,
+  xgb_external_metrics
+) |>
+  arrange(desc(f1_micro))
+
+external_prediction_summary <- bind_rows(
+  baseline_external_summary |> mutate(model = "Baseline Frequency Prior", .before = 1),
+  logit_external_summary |> mutate(model = "Logistic Regression", .before = 1),
+  knn_external_summary |> mutate(model = "KNN", .before = 1),
+  xgb_external_summary |> mutate(model = "XGBoost", .before = 1)
+)
+
+write_csv(
+  external_validation_results,
+  file.path(external_output_root, "external_validation_model_metrics.csv")
+)
+write_csv(
+  external_prediction_summary,
+  file.path(external_output_root, "external_validation_prediction_summary.csv")
+)
+saveRDS(
+  list(
+    external_validation_results = external_validation_results,
+    external_prediction_summary = external_prediction_summary,
+    retained_skills = retained_skills,
+    external_profiles = external_profiles
+  ),
+  file.path(external_output_root, "external_validation_all_model_results.rds")
+)
+
+external_validation_results
+```

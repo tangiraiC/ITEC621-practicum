@@ -4,10 +4,19 @@ author: "Team"
 output: html_document
 ---
 
+## File Overview
+
+This notebook trains a one-vs-rest logistic regression model for the 5k skill prediction task. It uses TF-IDF profile text features as inputs, predicts one binary skill label at a time, tunes thresholds, evaluates performance, and saves the fitted artifacts.
+
 This notebook trains and evaluates the one-vs-rest logistic regression model for
 the 5k LinkedIn skills extraction dataset.
 
+The setup chunk controls output formatting and loads the packages used for table manipulation and regularized logistic regression.
+
+**Summary:** This chunk sets global R Markdown options so rendered reports show code while suppressing warnings and messages. It also loads any packages needed immediately by this notebook.
+
 ```{r setup, include=FALSE}
+# Set notebook output options and load required packages.
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 
 library(dplyr)
@@ -17,7 +26,12 @@ library(glmnet)
 
 # Load Encoded 5k Inputs
 
+This block loads the saved train, validation, and test objects from the encoding step. It extracts sparse TF-IDF inputs, multi-label target matrices, and retained skill names, then prints dimensions for a quick consistency check.
+
+**Summary:** This chunk loads the encoded train, validation, and test objects produced by feature encoding. It extracts input matrices, target matrices, and skill labels for the model notebook.
+
 ```{r load-data}
+# Load encoded feature matrices and multi-label targets.
 project_root <- normalizePath(file.path("..", "..", "..", ".."))
 split_input_path <- file.path(project_root, "data", "processed", "train_validation_test_split.rds")
 
@@ -43,8 +57,13 @@ cat("y_test dimensions:", dim(y_test), "\n")
 
 # Modeling Scope
 
+This block limits the model to the 100 most common skill labels. Restricting the label set keeps the one-vs-rest training loop practical and aligned with the other model notebooks.
+
+**Summary:** This chunk limits modeling to the most frequent skill labels. The cap keeps training computationally manageable and ensures all compared models use the same target set.
+
 ```{r modeling-scope}
-max_model_labels <- 25
+# Select the most frequent skill labels for this model run.
+max_model_labels <- 100
 
 label_prevalence <- colMeans(y_train)
 label_order <- order(label_prevalence, decreasing = TRUE)
@@ -61,7 +80,12 @@ print(retained_skills)
 
 # Helper Functions
 
+This block defines reusable helpers for metric calculation, probability thresholding, class-availability checks, and validation-set threshold tuning. The same evaluation logic is used across all modeled skills.
+
+**Summary:** This chunk defines reusable helper functions for multi-label evaluation, probability thresholding, class checks, and validation-set threshold tuning. These helpers keep scoring consistent across skill labels.
+
 ```{r helper-functions}
+# Define metric, prediction, class-check, and threshold tuning helpers.
 safe_divide <- function(num, den) {
   ifelse(den == 0, 0, num / den)
 }
@@ -156,7 +180,12 @@ tune_label_thresholds <- function(y_true, prob_matrix, grid = seq(0.05, 0.95, by
 
 # Train Logistic Regression
 
+This block trains one ridge-regularized logistic regression model per selected skill label. Labels with enough examples use cross-validation to choose `lambda`; labels with very small class counts use a fixed lambda; labels without both classes fall back to the training-set prevalence.
+
+**Summary:** This chunk trains one ridge logistic regression model per selected skill. The one-vs-rest setup turns the multi-label task into a set of binary classification problems.
+
 ```{r train-logistic-regression}
+# Fit one binary logistic regression model for each selected skill.
 set.seed(621)
 
 logit_models <- vector("list", ncol(y_train))
@@ -235,7 +264,12 @@ logit_test_metrics
 
 # Save Outputs
 
+This block saves the fitted logistic models, validation/test probabilities, binary predictions, tuned thresholds, metric tables, and retained skill labels for reporting and comparison.
+
+**Summary:** This chunk saves this model's outputs, including metrics, thresholds, predictions, probabilities, retained labels, and fitted artifacts where applicable. Saving these files supports later comparison and reporting.
+
 ```{r save-outputs}
+# Write logistic regression artifacts and metric CSV files to the output folder.
 model_output_dir <- file.path(project_root, "data", "processed", "5k_model_outputs", "logistic_regression")
 dir.create(model_output_dir, recursive = TRUE, showWarnings = FALSE)
 

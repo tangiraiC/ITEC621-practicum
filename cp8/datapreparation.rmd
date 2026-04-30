@@ -65,3 +65,95 @@ cat("Prepared dataset shape:", dim(linkedin_prepared), "\n")
 cat("Prepared dataset saved to:", prepared_output_path, "\n")
 glimpse(linkedin_prepared)
 ```
+
+# External Validation Data Preparation
+
+This section prepares the joined KSB alumni + LinkedIn external validation file
+for the same downstream preprocessing workflow. It does not change the main 5k
+workflow above; it writes a separate prepared CSV for external validation.
+
+```{r prepare-external-validation-data}
+# Import the joined external validation dataset created in cleaningScripts.
+external_validation_input_path <- "../data/externalvalidation/ksb_alumni_linkedin_joined.csv"
+
+ksb_external_validation <- read_csv(
+  external_validation_input_path,
+  show_col_types = FALSE
+)
+
+external_validation_columns <- c(
+  "City",
+  "State",
+  "Country",
+  "Job_Title",
+  "Employer",
+  "Grad_Year",
+  "Degree",
+  "Degree_Program",
+  "Degree_Major",
+  "Index",
+  "field_of_study",
+  "education_start_year",
+  "education_end_year",
+  "current_job_title",
+  "current_job_description",
+  "current_company_name",
+  "current_company_url",
+  "current_job_industry",
+  "current_job_country",
+  "current_job_location",
+  "current_job_start_date",
+  "previous_job_title",
+  "previous_job_description",
+  "previous_company_name",
+  "total_experience_years",
+  "Skills",
+  "total_experience_count"
+)
+
+# Create any expected external-validation columns that are absent so the rest of
+# the CP8 pipeline always receives the same schema.
+missing_external_validation_columns <- setdiff(
+  external_validation_columns,
+  names(ksb_external_validation)
+)
+
+for (column_name in missing_external_validation_columns) {
+  ksb_external_validation[[column_name]] <- NA
+}
+
+# The external validation file does not include linkedin_url/headline in the same
+# way as the raw 5k scrape, so create stable workflow-compatible fields.
+if (!"linkedin_url" %in% names(ksb_external_validation)) {
+  ksb_external_validation <- ksb_external_validation |>
+    mutate(linkedin_url = paste0("external_validation_index_", Index))
+}
+
+if (!"headline" %in% names(ksb_external_validation)) {
+  ksb_external_validation <- ksb_external_validation |>
+    mutate(headline = coalesce(as.character(current_job_title), as.character(Job_Title), ""))
+}
+
+ksb_external_validation_prepared <- ksb_external_validation |>
+  mutate(
+    linkedin_url = as.character(linkedin_url),
+    headline = as.character(headline),
+    Skills = as.character(Skills)
+  ) |>
+  # External validation labels come from Skills, so remove rows without labels.
+  filter(!is.na(Skills), trimws(Skills) != "") |>
+  select(
+    linkedin_url,
+    headline,
+    all_of(external_validation_columns)
+  )
+
+external_prepared_output_path <- "../data/processed/ksb_alumni_linkedin_prepared.csv"
+write_csv(ksb_external_validation_prepared, external_prepared_output_path)
+
+cat("External validation prepared shape:", dim(ksb_external_validation_prepared), "\n")
+cat("External validation prepared dataset saved to:", external_prepared_output_path, "\n")
+cat("Missing expected external-validation columns created as NA:",
+    length(missing_external_validation_columns), "\n")
+glimpse(ksb_external_validation_prepared)
+```

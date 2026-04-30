@@ -580,6 +580,102 @@ cat(&quot;Saved TF-IDF matrix to:&quot;, tfidf_output_path, &quot;\n&quot;)</cod
 <pre class="r"><code>cat(&quot;Saved train/validation/test split objects to:&quot;, split_output_path, &quot;\n&quot;)</code></pre>
 <pre><code>## Saved train/validation/test split objects to: ../data/processed/train_validation_test_split.rds</code></pre>
 </div>
+<div id="external-validation-model-input-encoding" class="section level1">
+<h1>External Validation Model Input Encoding</h1>
+<p>This section encodes the KSB alumni + LinkedIn external validation dataset using the same skill vocabulary and TF-IDF vocabulary fitted above on the 5k training workflow. It does not create a new train/validation/test split and does not overwrite the main model inputs.</p>
+<pre class="r"><code># Import the preprocessed external validation dataset from the added preprocessing step.
+external_preprocessed_input_path &lt;- &quot;../data/processed/ksb_alumni_linkedin_preprocessed.csv&quot;
+
+ksb_external_preprocessed &lt;- read_csv(
+  external_preprocessed_input_path,
+  show_col_types = FALSE
+)
+
+# Clean the profile text and parse skills with the same helper functions used
+# for the main 5k modeling input.
+ksb_external_encoded &lt;- ksb_external_preprocessed |&gt;
+  mutate(
+    profile_text = clean_text_for_tfidf(profile_text),
+    parsed_skills = map(skills_list, parse_skills_list),
+    retained_skill_list = map(parsed_skills, ~ .x[.x %in% retained_skills]),
+    retained_skill_count = map_int(retained_skill_list, length)
+  )
+
+# Create an external validation target matrix aligned to the retained skill
+# columns from the main workflow. This preserves the same label order.
+external_n_rows &lt;- nrow(ksb_external_encoded)
+external_n_skills &lt;- length(retained_skills)
+
+external_y_matrix &lt;- matrix(0L, nrow = external_n_rows, ncol = external_n_skills)
+colnames(external_y_matrix) &lt;- retained_skills
+
+for (i in seq_len(external_n_rows)) {
+  skills_i &lt;- ksb_external_encoded$retained_skill_list[[i]]
+
+  if (length(skills_i) &gt; 0) {
+    matched_cols &lt;- match(skills_i, colnames(external_y_matrix))
+    matched_cols &lt;- matched_cols[!is.na(matched_cols)]
+
+    if (length(matched_cols) &gt; 0) {
+      external_y_matrix[i, matched_cols] &lt;- 1L
+    }
+  }
+}
+
+external_y_df &lt;- as_tibble(external_y_matrix)
+
+# Transform external validation profile text with the TF-IDF vocabulary and IDF
+# weights already fitted above. This keeps the feature space compatible.
+external_tokens_iterator &lt;- itoken(
+  ksb_external_encoded$profile_text,
+  tokenizer = word_tokenizer,
+  progressbar = FALSE
+)
+
+external_dtm &lt;- create_dtm(external_tokens_iterator, vectorizer)
+external_tfidf_matrix &lt;- tfidf_transformer$transform(external_dtm)
+
+if (!is.null(colnames(tfidf_matrix))) {
+  external_tfidf_matrix &lt;- external_tfidf_matrix[, colnames(tfidf_matrix), drop = FALSE]
+}
+
+stopifnot(nrow(external_tfidf_matrix) == nrow(external_y_df))
+
+cat(&quot;External validation encoded profiles:&quot;, nrow(ksb_external_encoded), &quot;\n&quot;)</code></pre>
+<pre><code>## External validation encoded profiles: 359</code></pre>
+<pre class="r"><code>cat(&quot;External validation TF-IDF dimensions:&quot;, dim(external_tfidf_matrix), &quot;\n&quot;)</code></pre>
+<pre><code>## External validation TF-IDF dimensions: 359 5000</code></pre>
+<pre class="r"><code>cat(&quot;External validation target dimensions:&quot;, dim(external_y_df), &quot;\n&quot;)</code></pre>
+<pre><code>## External validation target dimensions: 359 1052</code></pre>
+<pre class="r"><code># Save separate external validation encoding outputs.
+external_tfidf_output_path &lt;- &quot;../data/processed/ksb_alumni_linkedin_tfidf.rds&quot;
+external_targets_output_path &lt;- &quot;../data/processed/ksb_alumni_linkedin_multilabel_targets.csv&quot;
+external_encoded_profiles_output_path &lt;- &quot;../data/processed/ksb_alumni_linkedin_encoded_profiles.csv&quot;
+
+saveRDS(external_tfidf_matrix, external_tfidf_output_path)
+
+external_targets_to_save &lt;- bind_cols(
+  ksb_external_encoded |&gt; select(linkedin_url, Index),
+  external_y_df
+)
+
+write_csv(external_targets_to_save, external_targets_output_path)
+
+ksb_external_profiles_to_save &lt;- ksb_external_encoded |&gt;
+  mutate(
+    parsed_skills = map_chr(parsed_skills, paste, collapse = &quot;, &quot;),
+    retained_skill_list = map_chr(retained_skill_list, paste, collapse = &quot;, &quot;)
+  )
+
+write_csv(ksb_external_profiles_to_save, external_encoded_profiles_output_path)
+
+cat(&quot;Saved external validation TF-IDF matrix to:&quot;, external_tfidf_output_path, &quot;\n&quot;)</code></pre>
+<pre><code>## Saved external validation TF-IDF matrix to: ../data/processed/ksb_alumni_linkedin_tfidf.rds</code></pre>
+<pre class="r"><code>cat(&quot;Saved external validation targets to:&quot;, external_targets_output_path, &quot;\n&quot;)</code></pre>
+<pre><code>## Saved external validation targets to: ../data/processed/ksb_alumni_linkedin_multilabel_targets.csv</code></pre>
+<pre class="r"><code>cat(&quot;Saved external validation encoded profiles to:&quot;, external_encoded_profiles_output_path, &quot;\n&quot;)</code></pre>
+<pre><code>## Saved external validation encoded profiles to: ../data/processed/ksb_alumni_linkedin_encoded_profiles.csv</code></pre>
+</div>
 
 
 

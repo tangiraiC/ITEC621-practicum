@@ -167,10 +167,19 @@ pre code {
 </div>
 
 
+<div id="file-overview" class="section level2">
+<h2>File Overview</h2>
+<p>This notebook trains a one-vs-rest KNN model for the 5k skill prediction task. It reduces and scales the TF-IDF feature space for KNN, predicts skill labels based on nearby profiles, tunes thresholds, evaluates performance, and saves outputs.</p>
 <p>This notebook trains and evaluates the one-vs-rest KNN model for the 5k LinkedIn skills extraction dataset.</p>
+<p>The setup chunk controls output formatting and loads the packages used for table manipulation, sparse matrices, and KNN classification.</p>
+<p><strong>Summary:</strong> This chunk sets global R Markdown options so rendered reports show code while suppressing warnings and messages. It also loads any packages needed immediately by this notebook.</p>
+</div>
 <div id="load-encoded-5k-inputs" class="section level1">
 <h1>Load Encoded 5k Inputs</h1>
-<pre class="r"><code>project_root &lt;- normalizePath(file.path(&quot;..&quot;, &quot;..&quot;, &quot;..&quot;))
+<p>This block loads the encoded train, validation, and test objects from the previous step. It extracts TF-IDF feature matrices, multi-label target matrices, and retained skill labels, then prints dimensions to verify the split sizes.</p>
+<p><strong>Summary:</strong> This chunk loads the encoded train, validation, and test objects produced by feature encoding. It extracts input matrices, target matrices, and skill labels for the model notebook.</p>
+<pre class="r"><code># Load encoded feature matrices and multi-label targets.
+project_root &lt;- normalizePath(file.path(&quot;..&quot;, &quot;..&quot;, &quot;..&quot;, &quot;..&quot;))
 split_input_path &lt;- file.path(project_root, &quot;data&quot;, &quot;processed&quot;, &quot;train_validation_test_split.rds&quot;)
 
 split_objects &lt;- readRDS(split_input_path)
@@ -200,7 +209,10 @@ cat(&quot;X_train dimensions:&quot;, dim(X_train), &quot;\n&quot;)</code></pre>
 </div>
 <div id="modeling-scope" class="section level1">
 <h1>Modeling Scope</h1>
-<pre class="r"><code>max_model_labels &lt;- 25
+<p>This block limits the model to the 100 most common skills. KNN becomes expensive on large high-dimensional label problems, so this scope keeps the run manageable and comparable with the other standalone model files.</p>
+<p><strong>Summary:</strong> This chunk limits modeling to the most frequent skill labels. The cap keeps training computationally manageable and ensures all compared models use the same target set.</p>
+<pre class="r"><code># Select the most frequent skill labels for this model run.
+max_model_labels &lt;- 100
 
 label_prevalence &lt;- colMeans(y_train)
 label_order &lt;- order(label_prevalence, decreasing = TRUE)
@@ -212,21 +224,115 @@ y_test &lt;- y_test[, selected_label_indices, drop = FALSE]
 retained_skills &lt;- colnames(y_train)
 
 cat(&quot;Modeled labels:&quot;, ncol(y_train), &quot;\n&quot;)</code></pre>
-<pre><code>## Modeled labels: 25</code></pre>
+<pre><code>## Modeled labels: 100</code></pre>
 <pre class="r"><code>print(retained_skills)</code></pre>
-<pre><code>##  [1] &quot;leadership&quot;         &quot;microsoft excel&quot;    &quot;microsoft office&quot;  
-##  [4] &quot;customer service&quot;   &quot;project management&quot; &quot;management&quot;        
-##  [7] &quot;strategic planning&quot; &quot;public speaking&quot;    &quot;data analysis&quot;     
-## [10] &quot;communication&quot;      &quot;research&quot;           &quot;microsoft word&quot;    
-## [13] &quot;teamwork&quot;           &quot;marketing&quot;          &quot;financial analysis&quot;
-## [16] &quot;social media&quot;       &quot;sales&quot;              &quot;strategy&quot;          
-## [19] &quot;time management&quot;    &quot;team leadership&quot;    &quot;finance&quot;           
-## [22] &quot;business strategy&quot;  &quot;analytical skills&quot;  &quot;marketing strategy&quot;
-## [25] &quot;accounting&quot;</code></pre>
+<pre><code>##   [1] &quot;leadership&quot;                            
+##   [2] &quot;microsoft excel&quot;                       
+##   [3] &quot;microsoft office&quot;                      
+##   [4] &quot;customer service&quot;                      
+##   [5] &quot;project management&quot;                    
+##   [6] &quot;management&quot;                            
+##   [7] &quot;strategic planning&quot;                    
+##   [8] &quot;public speaking&quot;                       
+##   [9] &quot;data analysis&quot;                         
+##  [10] &quot;communication&quot;                         
+##  [11] &quot;research&quot;                              
+##  [12] &quot;microsoft word&quot;                        
+##  [13] &quot;teamwork&quot;                              
+##  [14] &quot;marketing&quot;                             
+##  [15] &quot;financial analysis&quot;                    
+##  [16] &quot;social media&quot;                          
+##  [17] &quot;sales&quot;                                 
+##  [18] &quot;strategy&quot;                              
+##  [19] &quot;time management&quot;                       
+##  [20] &quot;team leadership&quot;                       
+##  [21] &quot;finance&quot;                               
+##  [22] &quot;business strategy&quot;                     
+##  [23] &quot;analytical skills&quot;                     
+##  [24] &quot;marketing strategy&quot;                    
+##  [25] &quot;accounting&quot;                            
+##  [26] &quot;problem solving&quot;                       
+##  [27] &quot;powerpoint&quot;                            
+##  [28] &quot;business development&quot;                  
+##  [29] &quot;program management&quot;                    
+##  [30] &quot;event planning&quot;                        
+##  [31] &quot;microsoft powerpoint&quot;                  
+##  [32] &quot;financial modeling&quot;                    
+##  [33] &quot;team building&quot;                         
+##  [34] &quot;operations management&quot;                 
+##  [35] &quot;sql&quot;                                   
+##  [36] &quot;social media marketing&quot;                
+##  [37] &quot;training&quot;                              
+##  [38] &quot;cross-functional team leadership&quot;      
+##  [39] &quot;analysis&quot;                              
+##  [40] &quot;market research&quot;                       
+##  [41] &quot;negotiation&quot;                           
+##  [42] &quot;process improvement&quot;                   
+##  [43] &quot;business analysis&quot;                     
+##  [44] &quot;organization skills&quot;                   
+##  [45] &quot;risk management&quot;                       
+##  [46] &quot;financial reporting&quot;                   
+##  [47] &quot;investments&quot;                           
+##  [48] &quot;teaching&quot;                              
+##  [49] &quot;entrepreneurship&quot;                      
+##  [50] &quot;change management&quot;                     
+##  [51] &quot;leadership development&quot;                
+##  [52] &quot;python (programming language)&quot;         
+##  [53] &quot;account management&quot;                    
+##  [54] &quot;auditing&quot;                              
+##  [55] &quot;portfolio management&quot;                  
+##  [56] &quot;business process improvement&quot;          
+##  [57] &quot;budgets&quot;                               
+##  [58] &quot;advertising&quot;                           
+##  [59] &quot;financial accounting&quot;                  
+##  [60] &quot;due diligence&quot;                         
+##  [61] &quot;product development&quot;                   
+##  [62] &quot;community outreach&quot;                    
+##  [63] &quot;public relations&quot;                      
+##  [64] &quot;critical thinking&quot;                     
+##  [65] &quot;product management&quot;                    
+##  [66] &quot;banking&quot;                               
+##  [67] &quot;digital marketing&quot;                     
+##  [68] &quot;valuation&quot;                             
+##  [69] &quot;recruiting&quot;                            
+##  [70] &quot;fundraising&quot;                           
+##  [71] &quot;management consulting&quot;                 
+##  [72] &quot;coaching&quot;                              
+##  [73] &quot;customer relationship management (crm)&quot;
+##  [74] &quot;new business development&quot;              
+##  [75] &quot;interpersonal skills&quot;                  
+##  [76] &quot;project planning&quot;                      
+##  [77] &quot;tableau&quot;                               
+##  [78] &quot;statistics&quot;                            
+##  [79] &quot;corporate finance&quot;                     
+##  [80] &quot;sales management&quot;                      
+##  [81] &quot;presentation skills&quot;                   
+##  [82] &quot;presentations&quot;                         
+##  [83] &quot;contract negotiation&quot;                  
+##  [84] &quot;supply chain management&quot;               
+##  [85] &quot;healthcare&quot;                            
+##  [86] &quot;event management&quot;                      
+##  [87] &quot;business planning&quot;                     
+##  [88] &quot;higher education&quot;                      
+##  [89] &quot;analytics&quot;                             
+##  [90] &quot;artificial intelligence (ai)&quot;          
+##  [91] &quot;nonprofits&quot;                            
+##  [92] &quot;start-ups&quot;                             
+##  [93] &quot;asset management&quot;                      
+##  [94] &quot;internal controls&quot;                     
+##  [95] &quot;forecasting&quot;                           
+##  [96] &quot;team management&quot;                       
+##  [97] &quot;strategic partnerships&quot;                
+##  [98] &quot;inventory management&quot;                  
+##  [99] &quot;customer satisfaction&quot;                 
+## [100] &quot;english&quot;</code></pre>
 </div>
 <div id="helper-functions" class="section level1">
 <h1>Helper Functions</h1>
-<pre class="r"><code>safe_divide &lt;- function(num, den) {
+<p>This block defines reusable helpers for multi-label evaluation, probability thresholding, checking whether a label has both classes, and tuning skill-specific thresholds on validation data.</p>
+<p><strong>Summary:</strong> This chunk defines reusable helper functions for multi-label evaluation, probability thresholding, class checks, and validation-set threshold tuning. These helpers keep scoring consistent across skill labels.</p>
+<pre class="r"><code># Define metric, prediction, class-check, and threshold tuning helpers.
+safe_divide &lt;- function(num, den) {
   ifelse(den == 0, 0, num / den)
 }
 
@@ -319,7 +425,10 @@ tune_label_thresholds &lt;- function(y_true, prob_matrix, grid = seq(0.05, 0.95,
 </div>
 <div id="train-knn" class="section level1">
 <h1>Train KNN</h1>
-<pre class="r"><code>set.seed(621)
+<p>This block trains the KNN-style prediction workflow. It selects the most active TF-IDF features, converts them to dense matrices, scales validation and test data using training statistics, predicts each skill with <code>k = 5</code>, tunes thresholds, and evaluates validation/test performance.</p>
+<p><strong>Summary:</strong> This chunk trains the KNN model using a reduced and scaled TF-IDF feature matrix. The reduction is needed because KNN is memory-intensive on high-dimensional sparse text features.</p>
+<pre class="r"><code># Build dense reduced features, run KNN per skill, and evaluate predictions.
+set.seed(621)
 
 knn_feature_count &lt;- min(500, ncol(X_train))
 feature_variance &lt;- Matrix::colMeans(X_train != 0)
@@ -409,16 +518,19 @@ knn_validation_metrics</code></pre>
 <pre><code>## # A tibble: 1 × 6
 ##   precision_micro recall_micro f1_micro precision_macro recall_macro f1_macro
 ##             &lt;dbl&gt;        &lt;dbl&gt;    &lt;dbl&gt;           &lt;dbl&gt;        &lt;dbl&gt;    &lt;dbl&gt;
-## 1           0.136        0.246    0.175           0.124        0.226    0.159</code></pre>
+## 1          0.0996        0.179    0.128          0.0980        0.129   0.0938</code></pre>
 <pre class="r"><code>knn_test_metrics</code></pre>
 <pre><code>## # A tibble: 1 × 6
 ##   precision_micro recall_micro f1_micro precision_macro recall_macro f1_macro
 ##             &lt;dbl&gt;        &lt;dbl&gt;    &lt;dbl&gt;           &lt;dbl&gt;        &lt;dbl&gt;    &lt;dbl&gt;
-## 1           0.150        0.283    0.196           0.131        0.249    0.171</code></pre>
+## 1           0.110        0.200    0.142          0.0780        0.137   0.0937</code></pre>
 </div>
 <div id="save-outputs" class="section level1">
 <h1>Save Outputs</h1>
-<pre class="r"><code>model_output_dir &lt;- file.path(project_root, &quot;data&quot;, &quot;processed&quot;, &quot;5k_model_outputs&quot;, &quot;knn&quot;)
+<p>This block saves the KNN settings, scaling values, selected feature indexes, probabilities, predictions, thresholds, metrics, and retained skill labels for downstream reporting.</p>
+<p><strong>Summary:</strong> This chunk saves this model’s outputs, including metrics, thresholds, predictions, probabilities, retained labels, and fitted artifacts where applicable. Saving these files supports later comparison and reporting.</p>
+<pre class="r"><code># Write KNN artifacts and metric CSV files to the output folder.
+model_output_dir &lt;- file.path(project_root, &quot;data&quot;, &quot;processed&quot;, &quot;5k_model_outputs&quot;, &quot;knn&quot;)
 dir.create(model_output_dir, recursive = TRUE, showWarnings = FALSE)
 
 knn_results &lt;- list(
