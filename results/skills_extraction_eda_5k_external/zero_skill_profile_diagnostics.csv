@@ -1,0 +1,5 @@
+dataset,skill_label_status,profiles,mean_profile_tokens,median_profile_tokens,pct_with_current_job_description,pct_with_previous_job_description
+5k training dataset,Has zero skills,1028,17.740272373540854,9,13.813229571984436,10.408560311284047
+5k training dataset,Has at least one skill,4837,70.13458755426917,33,39.44593756460616,46.57845772172834
+KSB alumni external validation,Has zero skills,291,4.058419243986254,2,1.0309278350515463,1.0309278350515463
+KSB alumni external validation,Has at least one skill,359,82.44846796657382,20,32.590529247910865,47.07520891364902

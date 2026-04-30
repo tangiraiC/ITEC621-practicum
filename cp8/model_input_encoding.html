@@ -642,11 +642,11 @@ if (!is.null(colnames(tfidf_matrix))) {
 stopifnot(nrow(external_tfidf_matrix) == nrow(external_y_df))
 
 cat(&quot;External validation encoded profiles:&quot;, nrow(ksb_external_encoded), &quot;\n&quot;)</code></pre>
-<pre><code>## External validation encoded profiles: 359</code></pre>
+<pre><code>## External validation encoded profiles: 650</code></pre>
 <pre class="r"><code>cat(&quot;External validation TF-IDF dimensions:&quot;, dim(external_tfidf_matrix), &quot;\n&quot;)</code></pre>
-<pre><code>## External validation TF-IDF dimensions: 359 5000</code></pre>
+<pre><code>## External validation TF-IDF dimensions: 650 5000</code></pre>
 <pre class="r"><code>cat(&quot;External validation target dimensions:&quot;, dim(external_y_df), &quot;\n&quot;)</code></pre>
-<pre><code>## External validation target dimensions: 359 1052</code></pre>
+<pre><code>## External validation target dimensions: 650 1052</code></pre>
 <pre class="r"><code># Save separate external validation encoding outputs.
 external_tfidf_output_path &lt;- &quot;../data/processed/ksb_alumni_linkedin_tfidf.rds&quot;
 external_targets_output_path &lt;- &quot;../data/processed/ksb_alumni_linkedin_multilabel_targets.csv&quot;

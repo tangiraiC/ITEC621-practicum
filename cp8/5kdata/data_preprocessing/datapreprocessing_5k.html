@@ -167,11 +167,17 @@ pre code {
 </div>
 
 
+<div id="file-overview" class="section level2">
+<h2>File Overview</h2>
+<p>This notebook cleans the prepared 5k LinkedIn data before modeling. It standardizes text and categorical fields, parses skills, creates simple profile indicators, checks data quality, and saves the preprocessed CSV used by feature encoding.</p>
 <p>This notebook takes the prepared LinkedIn dataset from the data preparation step and cleans it for modeling. The main goals are to standardize text, normalize categorical fields, parse skills into reusable lists, add simple feature flags, and save a consistent preprocessed dataset.</p>
 <p>The setup chunk controls how code, warnings, and messages appear in the rendered HTML output.</p>
+<p><strong>Summary:</strong> This chunk sets global R Markdown options so rendered reports show code while suppressing warnings and messages. It also loads any packages needed immediately by this notebook.</p>
+</div>
 <div id="load-packages" class="section level1">
 <h1>Load Packages</h1>
 <p>This block loads the packages used for importing CSV files, transforming data frames, cleaning strings, and reshaping summary tables.</p>
+<p><strong>Summary:</strong> This chunk loads the R packages needed in this file. Loading them at the top makes the dependencies explicit before data processing begins.</p>
 <pre class="r"><code># Load packages for reading, cleaning, transforming, and summarizing the data.
 library(readr)
 library(dplyr)
@@ -181,8 +187,9 @@ library(tidyr)</code></pre>
 <div id="import-prepared-5k-dataset" class="section level1">
 <h1>Import Prepared 5k Dataset</h1>
 <p>This block reads the prepared dataset that was created in <code>datapreparation.rmd</code>. It also prints the dataset dimensions and a quick preview so we can confirm the expected file was loaded.</p>
+<p><strong>Summary:</strong> This chunk reads the prepared CSV produced by the data preparation step. The preview checks that the expected profile fields are available for cleaning.</p>
 <pre class="r"><code># Import the prepared LinkedIn dataset that will be cleaned for modeling.
-prepared_input_path &lt;- &quot;../data/processed/linkedin_full_5865_prepared.csv&quot;
+prepared_input_path &lt;- &quot;../../../data/processed/linkedin_full_5865_prepared.csv&quot;
 
 linkedin_prepared &lt;- read_csv(prepared_input_path, show_col_types = FALSE)
 
@@ -229,6 +236,7 @@ cat(&quot;Prepared dataset shape:&quot;, dim(linkedin_prepared), &quot;\n&quot;)
 <div id="helper-functions" class="section level1">
 <h1>Helper Functions</h1>
 <p>This block defines reusable cleaning functions. Keeping the cleaning rules in functions makes the preprocessing steps more consistent and easier to update later.</p>
+<p><strong>Summary:</strong> This chunk defines reusable helper functions so cleaning, parsing, thresholding, and evaluation rules stay consistent throughout the notebook.</p>
 <pre class="r"><code># Define reusable text, category, identifier, and skills parsing helpers.
 clean_text &lt;- function(x) {
   x &lt;- ifelse(is.na(x), &quot;&quot;, as.character(x))
@@ -277,6 +285,7 @@ collapse_skills &lt;- function(skill_list) {
 <div id="preprocess-dataset" class="section level1">
 <h1>Preprocess Dataset</h1>
 <p>This block applies the main preprocessing rules. It standardizes column names, cleans text fields, fills missing numeric experience values with zero, creates description indicator variables, combines job text into one <code>profile_text</code> field, removes blank LinkedIn URLs, and deduplicates profiles.</p>
+<p><strong>Summary:</strong> This chunk applies the main cleaning rules to profile fields. It standardizes text and categories, fills missing numeric values, creates description flags, builds combined profile text, removes blank profile URLs, and deduplicates profiles.</p>
 <pre class="r"><code># Clean and standardize the profile-level fields used later for encoding and modeling.
 linkedin_preprocessed &lt;- linkedin_prepared |&gt;
   rename(
@@ -364,6 +373,7 @@ cat(&quot;Preprocessed dataset shape:&quot;, dim(linkedin_preprocessed), &quot;\
 <div id="skills-processing" class="section level1">
 <h1>Skills Processing</h1>
 <p>This block converts the cleaned skills string into a list of unique skills for each profile. It also counts the number of skills per profile, which becomes a useful diagnostic and modeling feature.</p>
+<p><strong>Summary:</strong> This chunk converts the cleaned skills string into a list of unique skills for each profile. The skill count becomes both a diagnostic and a useful field for later filtering.</p>
 <pre class="r"><code># Parse each profile&#39;s skills into a list and count the number of unique skills.
 linkedin_preprocessed &lt;- linkedin_preprocessed |&gt;
   mutate(
@@ -387,6 +397,7 @@ linkedin_preprocessed |&gt;
 <div id="missing-values-check" class="section level1">
 <h1>Missing Values Check</h1>
 <p>This block checks how many missing values remain in each column after preprocessing. This is a quality-control step to make sure the modeling inputs do not have unexpected gaps.</p>
+<p><strong>Summary:</strong> This chunk counts missing values after preprocessing. It is a quality-control check to confirm the cleaned dataset does not contain unexpected gaps.</p>
 <pre class="r"><code># Summarize remaining missing values by column after cleaning.
 missing_summary &lt;- linkedin_preprocessed |&gt;
   summarise(across(everything(), ~ sum(is.na(.)))) |&gt;
@@ -416,6 +427,7 @@ missing_summary</code></pre>
 <div id="preprocessing-summary-checks" class="section level1">
 <h1>Preprocessing Summary Checks</h1>
 <p>This block reports high-level checks for the cleaned dataset. These summary values help confirm that the profile count, description coverage, and skill counts look reasonable before encoding.</p>
+<p><strong>Summary:</strong> This chunk summarizes the cleaned data after preprocessing. It checks profile counts, description coverage, and skill counts before saving the file.</p>
 <pre class="r"><code># Report summary diagnostics for profile coverage and skill counts.
 linkedin_preprocessed |&gt;
   summarise(
@@ -436,8 +448,9 @@ linkedin_preprocessed |&gt;
 <div id="save-preprocessed-dataset" class="section level1">
 <h1>Save Preprocessed Dataset</h1>
 <p>This block saves the cleaned dataset to <code>data/processed</code>. The <code>skills_list</code> column is collapsed back into text first because CSV files cannot store R list columns directly.</p>
+<p><strong>Summary:</strong> This chunk saves the cleaned profile dataset for feature encoding. The skills list is collapsed back into text because CSV files cannot directly store R list columns.</p>
 <pre class="r"><code># Save the cleaned dataset for the model input encoding step.
-preprocessed_output_path &lt;- &quot;../data/processed/linkedin_full_5865_preprocessed.csv&quot;
+preprocessed_output_path &lt;- &quot;../../../data/processed/linkedin_full_5865_preprocessed.csv&quot;
 
 linkedin_preprocessed_output &lt;- linkedin_preprocessed |&gt;
   mutate(skills_list = collapse_skills(skills_list))
@@ -445,7 +458,7 @@ linkedin_preprocessed_output &lt;- linkedin_preprocessed |&gt;
 write_csv(linkedin_preprocessed_output, preprocessed_output_path)
 
 cat(&quot;Preprocessed dataset saved to:&quot;, preprocessed_output_path, &quot;\n&quot;)</code></pre>
-<pre><code>## Preprocessed dataset saved to: ../data/processed/linkedin_full_5865_preprocessed.csv</code></pre>
+<pre><code>## Preprocessed dataset saved to: ../../../data/processed/linkedin_full_5865_preprocessed.csv</code></pre>
 </div>
 
 

@@ -1,0 +1,41 @@
+dataset,term,n
+5k training dataset,business,2899
+5k training dataset,management,2438
+5k training dataset,manager,2135
+5k training dataset,director,1851
+5k training dataset,marketing,1714
+5k training dataset,development,1439
+5k training dataset,financial,1424
+5k training dataset,data,1419
+5k training dataset,operations,1371
+5k training dataset,senior,1336
+5k training dataset,team,1198
+5k training dataset,sales,1103
+5k training dataset,strategy,1080
+5k training dataset,analyst,1029
+5k training dataset,product,1018
+5k training dataset,program,989
+5k training dataset,services,971
+5k training dataset,finance,956
+5k training dataset,president,915
+5k training dataset,strategic,900
+KSB alumni external validation,manager,299
+KSB alumni external validation,senior,297
+KSB alumni external validation,data,262
+KSB alumni external validation,analyst,197
+KSB alumni external validation,business,190
+KSB alumni external validation,management,179
+KSB alumni external validation,marketing,156
+KSB alumni external validation,operations,140
+KSB alumni external validation,associate,136
+KSB alumni external validation,project,131
+KSB alumni external validation,financial,121
+KSB alumni external validation,unknown,120
+KSB alumni external validation,team,117
+KSB alumni external validation,development,104
+KSB alumni external validation,program,99
+KSB alumni external validation,strategy,95
+KSB alumni external validation,consultant,94
+KSB alumni external validation,including,91
+KSB alumni external validation,support,91
+KSB alumni external validation,tax,91

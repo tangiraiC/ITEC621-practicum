@@ -210,11 +210,11 @@ external_profiles &lt;- read_csv(external_profiles_path, show_col_types = FALSE)
 cat(&quot;Training feature matrix:&quot;, dim(X_train), &quot;\n&quot;)</code></pre>
 <pre><code>## Training feature matrix: 4106 5000</code></pre>
 <pre class="r"><code>cat(&quot;External validation feature matrix:&quot;, dim(X_external), &quot;\n&quot;)</code></pre>
-<pre><code>## External validation feature matrix: 359 5000</code></pre>
+<pre><code>## External validation feature matrix: 650 5000</code></pre>
 <pre class="r"><code>cat(&quot;External validation targets:&quot;, dim(external_targets), &quot;\n&quot;)</code></pre>
-<pre><code>## External validation targets: 359 1054</code></pre>
+<pre><code>## External validation targets: 650 1054</code></pre>
 <pre class="r"><code>cat(&quot;External validation profiles:&quot;, dim(external_profiles), &quot;\n&quot;)</code></pre>
-<pre><code>## External validation profiles: 359 37</code></pre>
+<pre><code>## External validation profiles: 650 37</code></pre>
 </div>
 <div id="helper-functions" class="section level1">
 <h1>Helper Functions</h1>
@@ -497,7 +497,7 @@ baseline_external_metrics</code></pre>
 <pre><code>## # A tibble: 1 × 7
 ##   model       precision_micro recall_micro f1_micro precision_macro recall_macro
 ##   &lt;chr&gt;                 &lt;dbl&gt;        &lt;dbl&gt;    &lt;dbl&gt;           &lt;dbl&gt;        &lt;dbl&gt;
-## 1 Baseline F…           0.157        0.742    0.259          0.0518        0.330
+## 1 Baseline F…          0.0868        0.742    0.155          0.0286        0.330
 ## # ℹ 1 more variable: f1_macro &lt;dbl&gt;</code></pre>
 </div>
 <div id="logistic-regression" class="section level1">
@@ -556,7 +556,7 @@ logit_external_metrics</code></pre>
 <pre><code>## # A tibble: 1 × 7
 ##   model       precision_micro recall_micro f1_micro precision_macro recall_macro
 ##   &lt;chr&gt;                 &lt;dbl&gt;        &lt;dbl&gt;    &lt;dbl&gt;           &lt;dbl&gt;        &lt;dbl&gt;
-## 1 Logistic R…           0.159        0.727    0.261          0.0531        0.321
+## 1 Logistic R…          0.0877        0.727    0.156          0.0298        0.321
 ## # ℹ 1 more variable: f1_macro &lt;dbl&gt;</code></pre>
 </div>
 <div id="knn" class="section level1">
@@ -650,7 +650,7 @@ knn_external_metrics</code></pre>
 <pre><code>## # A tibble: 1 × 7
 ##   model precision_micro recall_micro f1_micro precision_macro recall_macro
 ##   &lt;chr&gt;           &lt;dbl&gt;        &lt;dbl&gt;    &lt;dbl&gt;           &lt;dbl&gt;        &lt;dbl&gt;
-## 1 KNN             0.158        0.273    0.200          0.0874        0.147
+## 1 KNN            0.0913        0.273    0.137          0.0499        0.147
 ## # ℹ 1 more variable: f1_macro &lt;dbl&gt;</code></pre>
 </div>
 <div id="xgboost" class="section level1">
@@ -707,7 +707,7 @@ xgb_external_metrics</code></pre>
 <pre><code>## # A tibble: 1 × 7
 ##   model   precision_micro recall_micro f1_micro precision_macro recall_macro
 ##   &lt;chr&gt;             &lt;dbl&gt;        &lt;dbl&gt;    &lt;dbl&gt;           &lt;dbl&gt;        &lt;dbl&gt;
-## 1 XGBoost           0.194        0.405    0.262           0.108        0.233
+## 1 XGBoost           0.130        0.405    0.197          0.0790        0.233
 ## # ℹ 1 more variable: f1_macro &lt;dbl&gt;</code></pre>
 </div>
 <div id="compare-external-validation-results" class="section level1">
@@ -749,10 +749,10 @@ external_validation_results</code></pre>
 <pre><code>## # A tibble: 4 × 7
 ##   model       precision_micro recall_micro f1_micro precision_macro recall_macro
 ##   &lt;chr&gt;                 &lt;dbl&gt;        &lt;dbl&gt;    &lt;dbl&gt;           &lt;dbl&gt;        &lt;dbl&gt;
-## 1 XGBoost               0.194        0.405    0.262          0.108         0.233
-## 2 Logistic R…           0.159        0.727    0.261          0.0531        0.321
-## 3 Baseline F…           0.157        0.742    0.259          0.0518        0.330
-## 4 KNN                   0.158        0.273    0.200          0.0874        0.147
+## 1 XGBoost              0.130         0.405    0.197          0.0790        0.233
+## 2 Logistic R…          0.0877        0.727    0.156          0.0298        0.321
+## 3 Baseline F…          0.0868        0.742    0.155          0.0286        0.330
+## 4 KNN                  0.0913        0.273    0.137          0.0499        0.147
 ## # ℹ 1 more variable: f1_macro &lt;dbl&gt;</code></pre>
 </div>
 

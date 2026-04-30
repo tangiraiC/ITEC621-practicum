@@ -1,0 +1,1372 @@
+---
+title: "EDA for Skill Extraction from Job Descriptions: 5k Training vs External Validation"
+author: "Lincoln Chanakira"
+output: html_document
+---
+
+This exploratory analysis supports the research question:
+
+> How well can skills be extracted or predicted from LinkedIn job descriptions,
+> job titles, and related profile text?
+
+The analysis compares the two datasets used in the final CP8 modeling and
+external validation workflow:
+
+- The 5k LinkedIn dataset used for training and internal testing.
+- The KSB alumni + LinkedIn external validation dataset used for out-of-sample
+  validation.
+
+The main EDA focus is:
+
+- Dataset dimensions.
+- Total number of skill assignments.
+- Number of unique skills.
+- Skills per profile.
+- Job-description text availability.
+- Skill overlap between the 5k training data and external validation data.
+- Label imbalance and top-skill concentration.
+- Coverage of the 100 modeled skills in the external validation dataset.
+- TF-IDF vocabulary and sparsity diagnostics.
+- Text-to-skill signal checks using token-skill association.
+- Skill co-occurrence patterns for multi-label modeling.
+- Train-vs-external validation drift diagnostics.
+- Model-readiness risks and practical recommendations.
+
+These measures show whether the 5k training data has enough label coverage for
+modeling and whether the external validation dataset is comparable enough for a
+fair out-of-sample check.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+# Load Packages and Paths
+
+```{r packages}
+library(readr)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(purrr)
+library(ggplot2)
+library(tidytext)
+library(scales)
+library(tibble)
+library(forcats)
+```
+
+```{r paths}
+processed_dir <- file.path("..", "data", "processed")
+eda_dir <- file.path("..", "results", "skills_extraction_eda_5k_external")
+
+dir.create(eda_dir, recursive = TRUE, showWarnings = FALSE)
+```
+
+# Helper Functions
+
+```{r helper-functions}
+# Normalize text so token and skill comparisons are consistent across datasets.
+clean_text_for_eda <- function(x) {
+  x <- ifelse(is.na(x), "", as.character(x))
+  x <- str_to_lower(x)
+  x <- str_replace_all(x, "[\r\n\t]+", " ")
+  x <- str_replace_all(x, "[[:punct:]]+", " ")
+  x <- str_replace_all(x, "\\s+", " ")
+  str_squish(x)
+}
+
+# Convert comma/semicolon/pipe-separated skill strings into unique skill vectors.
+split_skill_string <- function(x) {
+  x <- ifelse(is.na(x), "", as.character(x))
+  x <- str_to_lower(x)
+  x <- str_replace_all(x, "\\s*[,;|]\\s*", ",")
+  str_split(x, ",") |>
+    map(~ {
+      skills <- str_squish(.x)
+      skills <- skills[skills != ""]
+      unique(skills)
+    })
+}
+
+count_words <- function(x) {
+  str_count(ifelse(is.na(x), "", as.character(x)), "\\S+")
+}
+
+collapse_row_text <- function(df, columns) {
+  if (length(columns) == 0) {
+    return(rep("", nrow(df)))
+  }
+
+  df |>
+    select(all_of(columns)) |>
+    mutate(across(everything(), as.character)) |>
+    pmap_chr(function(...) {
+      values <- c(...)
+      values <- values[!is.na(values) & values != ""]
+      paste(values, collapse = " ")
+    })
+}
+
+make_dataset_summary <- function(df) {
+  df |>
+    group_by(dataset) |>
+    summarise(
+      profiles = n(),
+      profiles_with_skills = sum(skill_count > 0),
+      pct_profiles_with_skills = mean(skill_count > 0) * 100,
+      avg_skills_per_profile = mean(skill_count),
+      median_skills_per_profile = median(skill_count),
+      avg_profile_tokens = mean(profile_token_count),
+      median_profile_tokens = median(profile_token_count),
+      pct_profiles_with_current_description = mean(has_current_job_description) * 100,
+      pct_profiles_with_previous_description = mean(has_previous_job_description) * 100,
+      avg_experience_count = mean(total_experience_count, na.rm = TRUE),
+      .groups = "drop"
+    )
+}
+```
+
+# Load and Harmonize Datasets
+
+```{r load-5k-dataset}
+# The 5k dataset is the primary training dataset used by the CP8 modeling
+# workflow. It already contains cleaned profile_text and parsed skill counts.
+data_5k_path <- file.path(processed_dir, "linkedin_full_5865_preprocessed.csv")
+data_5k_raw <- read_csv(data_5k_path, show_col_types = FALSE)
+
+data_5k <- data_5k_raw |>
+  transmute(
+    dataset = "5k training dataset",
+    profile_id = linkedin_url,
+    profile_text = clean_text_for_eda(profile_text),
+    current_job_title = current_job_title,
+    current_job_description = current_job_description,
+    previous_job_title = previous_job_title,
+    previous_job_description = previous_job_description,
+    skills = skills,
+    skill_list = split_skill_string(skills),
+    skill_count = lengths(skill_list),
+    has_current_job_description = has_current_job_description,
+    has_previous_job_description = has_previous_job_description,
+    total_experience_count = total_experience_count,
+    source_role = "model training and internal validation"
+  ) |>
+  mutate(profile_token_count = count_words(profile_text))
+
+cat("5k dataset shape:", dim(data_5k), "\n")
+glimpse(data_5k)
+```
+
+```{r load-external-validation-dataset}
+# The external validation dataset is the KSB alumni + LinkedIn file after CP8
+# preparation and preprocessing. Rows with empty Skills were removed upstream.
+external_path <- file.path(processed_dir, "ksb_alumni_linkedin_preprocessed.csv")
+external_raw <- read_csv(external_path, show_col_types = FALSE)
+
+external_validation <- external_raw |>
+  transmute(
+    dataset = "KSB alumni external validation",
+    profile_id = linkedin_url,
+    profile_text = clean_text_for_eda(profile_text),
+    current_job_title = current_job_title,
+    current_job_description = current_job_description,
+    previous_job_title = previous_job_title,
+    previous_job_description = previous_job_description,
+    skills = skills,
+    skill_list = split_skill_string(skills),
+    skill_count = lengths(skill_list),
+    has_current_job_description = has_current_job_description,
+    has_previous_job_description = has_previous_job_description,
+    total_experience_count = total_experience_count,
+    source_role = "external validation"
+  ) |>
+  mutate(profile_token_count = count_words(profile_text))
+
+cat("External validation shape:", dim(external_validation), "\n")
+glimpse(external_validation)
+```
+
+```{r combine-datasets}
+combined_profiles <- bind_rows(data_5k, external_validation)
+
+combined_profiles |>
+  count(dataset, source_role)
+```
+
+# Core Dataset and Skill Inventory
+
+This section is the main dataset-level EDA. It compares the size of the 5k
+training dataset and the external validation dataset, then summarizes the skill
+labels that the model is trying to predict.
+
+```{r dataset-dimensions}
+dataset_dimensions <- tibble(
+  dataset = c("5k training dataset", "KSB alumni external validation"),
+  raw_rows = c(nrow(data_5k_raw), nrow(external_raw)),
+  raw_columns = c(ncol(data_5k_raw), ncol(external_raw)),
+  analysis_rows = c(nrow(data_5k), nrow(external_validation)),
+  analysis_columns = c(ncol(data_5k), ncol(external_validation))
+)
+
+dataset_dimensions
+
+write_csv(dataset_dimensions, file.path(eda_dir, "dataset_dimensions.csv"))
+```
+
+```{r skill-long-table}
+skills_long <- combined_profiles |>
+  select(dataset, profile_id, skill_list) |>
+  unnest(skill_list) |>
+  rename(skill = skill_list) |>
+  filter(!is.na(skill), skill != "")
+```
+
+```{r skill-inventory}
+skill_inventory <- skills_long |>
+  group_by(dataset) |>
+  summarise(
+    total_number_of_skills = n(),
+    unique_skills = n_distinct(skill),
+    profiles_with_skills = n_distinct(profile_id),
+    avg_profiles_per_skill = total_number_of_skills / unique_skills,
+    .groups = "drop"
+  )
+
+skill_inventory
+
+write_csv(skill_inventory, file.path(eda_dir, "skill_inventory_summary.csv"))
+```
+
+```{r skills-per-profile-summary}
+skills_per_profile_summary <- combined_profiles |>
+  group_by(dataset) |>
+  summarise(
+    profiles = n(),
+    profiles_with_zero_skills = sum(skill_count == 0),
+    min_skills_per_profile = min(skill_count),
+    p25_skills_per_profile = quantile(skill_count, 0.25),
+    median_skills_per_profile = median(skill_count),
+    mean_skills_per_profile = mean(skill_count),
+    p75_skills_per_profile = quantile(skill_count, 0.75),
+    max_skills_per_profile = max(skill_count),
+    .groups = "drop"
+  )
+
+skills_per_profile_summary
+
+write_csv(
+  skills_per_profile_summary,
+  file.path(eda_dir, "skills_per_profile_summary.csv")
+)
+```
+
+```{r skill-inventory-plot, fig.width=10, fig.height=6}
+skill_inventory_plot <- skill_inventory |>
+  select(dataset, total_number_of_skills, unique_skills) |>
+  pivot_longer(
+    cols = c(total_number_of_skills, unique_skills),
+    names_to = "metric",
+    values_to = "count"
+  ) |>
+  mutate(
+    metric = recode(
+      metric,
+      total_number_of_skills = "Total skill assignments",
+      unique_skills = "Unique skills"
+    )
+  ) |>
+  ggplot(aes(x = dataset, y = count, fill = dataset)) +
+  geom_col(show.legend = FALSE, width = 0.65) +
+  geom_text(aes(label = comma(count)), vjust = -0.25, size = 3.5) +
+  facet_wrap(~ metric, scales = "free_y") +
+  labs(
+    title = "Total and Unique Skill Labels by Dataset",
+    subtitle = "Total skills count all profile-skill assignments; unique skills count distinct labels",
+    x = NULL,
+    y = "Count"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 15, hjust = 1))
+
+skill_inventory_plot
+
+ggsave(
+  file.path(eda_dir, "skill_inventory_plot.png"),
+  skill_inventory_plot,
+  width = 10,
+  height = 6
+)
+```
+
+```{r skills-per-profile-plot, fig.width=11, fig.height=6}
+skills_per_profile_plot <- combined_profiles |>
+  ggplot(aes(x = skill_count, fill = dataset)) +
+  geom_histogram(binwidth = 1, alpha = 0.8, boundary = 0, show.legend = FALSE) +
+  facet_wrap(~ dataset, scales = "free_y") +
+  scale_x_continuous(breaks = pretty_breaks()) +
+  labs(
+    title = "Skills per Profile",
+    subtitle = "Each row can have multiple skill labels, so this is a multi-label prediction problem",
+    x = "Number of skills listed on a profile",
+    y = "Profiles"
+  ) +
+  theme_minimal()
+
+skills_per_profile_plot
+
+ggsave(
+  file.path(eda_dir, "skills_per_profile_plot.png"),
+  skills_per_profile_plot,
+  width = 11,
+  height = 6
+)
+```
+
+# Other Important EDA Metrics
+
+These additional metrics connect the dataset summaries back to the modeling
+problem. A skill extraction model needs enough text signal, enough repeated
+labels to learn from, and enough overlap between the training label space and
+the external validation label space.
+
+```{r text-signal-summary}
+text_signal_summary <- combined_profiles |>
+  group_by(dataset) |>
+  summarise(
+    profiles = n(),
+    profiles_with_profile_text = sum(profile_token_count > 0),
+    pct_profiles_with_profile_text = mean(profile_token_count > 0) * 100,
+    profiles_with_current_job_description = sum(has_current_job_description == 1),
+    pct_profiles_with_current_job_description = mean(has_current_job_description == 1) * 100,
+    profiles_with_previous_job_description = sum(has_previous_job_description == 1),
+    pct_profiles_with_previous_job_description = mean(has_previous_job_description == 1) * 100,
+    total_profile_text_tokens = sum(profile_token_count),
+    mean_profile_text_tokens = mean(profile_token_count),
+    median_profile_text_tokens = median(profile_token_count),
+    .groups = "drop"
+  )
+
+text_signal_summary
+
+write_csv(text_signal_summary, file.path(eda_dir, "text_signal_summary.csv"))
+```
+
+```{r label-density-summary}
+top_20_skill_names <- skills_long |>
+  group_by(dataset) |>
+  count(skill, sort = TRUE) |>
+  slice_max(order_by = n, n = 20, with_ties = FALSE) |>
+  ungroup()
+
+top_20_skill_assignments <- skills_long |>
+  semi_join(top_20_skill_names, by = c("dataset", "skill")) |>
+  count(dataset, name = "assignments_in_top_20_skills")
+
+label_density_summary <- skill_inventory |>
+  left_join(top_20_skill_assignments, by = "dataset") |>
+  mutate(
+    possible_profile_skill_pairs = profiles_with_skills * unique_skills,
+    label_density_pct = total_number_of_skills / possible_profile_skill_pairs * 100,
+    pct_assignments_in_top_20_skills = assignments_in_top_20_skills / total_number_of_skills * 100
+  ) |>
+  select(
+    dataset,
+    total_number_of_skills,
+    unique_skills,
+    possible_profile_skill_pairs,
+    label_density_pct,
+    assignments_in_top_20_skills,
+    pct_assignments_in_top_20_skills
+  )
+
+label_density_summary
+
+write_csv(label_density_summary, file.path(eda_dir, "label_density_summary.csv"))
+```
+
+```{r skill-overlap-summary}
+training_skills <- skills_long |>
+  filter(dataset == "5k training dataset") |>
+  distinct(skill) |>
+  pull(skill)
+
+external_skills <- skills_long |>
+  filter(dataset == "KSB alumni external validation") |>
+  distinct(skill) |>
+  pull(skill)
+
+skill_overlap_summary <- tibble(
+  training_unique_skills = length(training_skills),
+  external_unique_skills = length(external_skills),
+  shared_unique_skills = length(intersect(training_skills, external_skills)),
+  external_unique_skills_seen_in_training = sum(external_skills %in% training_skills),
+  external_unique_skills_unseen_in_training = sum(!external_skills %in% training_skills),
+  pct_external_unique_skills_seen_in_training = mean(external_skills %in% training_skills) * 100
+)
+
+skill_overlap_summary
+
+write_csv(skill_overlap_summary, file.path(eda_dir, "skill_overlap_summary.csv"))
+```
+
+```{r skill-overlap-plot, fig.width=9, fig.height=5}
+skill_overlap_plot_data <- tibble(
+  overlap_group = c("External skills seen in 5k training", "External skills not seen in 5k training"),
+  unique_skills = c(
+    skill_overlap_summary$external_unique_skills_seen_in_training,
+    skill_overlap_summary$external_unique_skills_unseen_in_training
+  )
+)
+
+skill_overlap_plot <- skill_overlap_plot_data |>
+  ggplot(aes(x = overlap_group, y = unique_skills, fill = overlap_group)) +
+  geom_col(show.legend = FALSE, width = 0.65) +
+  geom_text(aes(label = comma(unique_skills)), vjust = -0.25, size = 3.5) +
+  labs(
+    title = "External Skill Overlap with 5k Training Labels",
+    subtitle = "External skills outside the training label space cannot be predicted directly",
+    x = NULL,
+    y = "Unique external skills"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 10, hjust = 1))
+
+skill_overlap_plot
+
+ggsave(
+  file.path(eda_dir, "skill_overlap_plot.png"),
+  skill_overlap_plot,
+  width = 9,
+  height = 5
+)
+```
+
+```{r modeled-skill-readiness-summary}
+external_model_metrics_path <- file.path(
+  processed_dir,
+  "external_validation_model_outputs",
+  "external_validation_all_model_results.rds"
+)
+
+if (file.exists(external_model_metrics_path)) {
+  external_model_results <- readRDS(external_model_metrics_path)
+  modeled_skills <- external_model_results$retained_skills
+} else {
+  split_objects <- readRDS(file.path(processed_dir, "train_validation_test_split.rds"))
+  y_train <- as.matrix(split_objects$y_train)
+  label_order <- order(colMeans(y_train), decreasing = TRUE)
+  modeled_skills <- colnames(y_train)[label_order[seq_len(min(100, ncol(y_train)))]]
+}
+
+modeled_skill_readiness_summary <- skills_long |>
+  filter(dataset == "KSB alumni external validation") |>
+  mutate(in_modeled_skill_space = skill %in% modeled_skills) |>
+  summarise(
+    modeled_skill_count = length(modeled_skills),
+    external_skill_assignments = n(),
+    external_assignments_in_modeled_skill_space = sum(in_modeled_skill_space),
+    pct_external_assignments_in_modeled_skill_space = mean(in_modeled_skill_space) * 100,
+    external_unique_skills = n_distinct(skill),
+    external_unique_skills_in_modeled_skill_space = n_distinct(skill[in_modeled_skill_space]),
+    pct_external_unique_skills_in_modeled_skill_space =
+      external_unique_skills_in_modeled_skill_space / external_unique_skills * 100
+  )
+
+modeled_skill_readiness_summary
+
+write_csv(
+  modeled_skill_readiness_summary,
+  file.path(eda_dir, "modeled_skill_readiness_summary.csv")
+)
+```
+
+# Dataset Readiness for Skill Extraction
+
+```{r dataset-summary}
+dataset_summary <- make_dataset_summary(combined_profiles)
+dataset_summary
+
+write_csv(dataset_summary, file.path(eda_dir, "dataset_readiness_summary.csv"))
+```
+
+```{r dataset-summary-plot, fig.width=11, fig.height=6}
+readiness_long <- dataset_summary |>
+  select(
+    dataset,
+    pct_profiles_with_skills,
+    pct_profiles_with_current_description,
+    pct_profiles_with_previous_description
+  ) |>
+  pivot_longer(
+    cols = -dataset,
+    names_to = "metric",
+    values_to = "percent"
+  ) |>
+  mutate(
+    metric = recode(
+      metric,
+      pct_profiles_with_skills = "Has skill labels",
+      pct_profiles_with_current_description = "Has current job description",
+      pct_profiles_with_previous_description = "Has previous job description"
+    )
+  )
+
+coverage_plot <- readiness_long |>
+  ggplot(aes(x = dataset, y = percent, fill = metric)) +
+  geom_col(position = position_dodge(width = 0.75), width = 0.7) +
+  geom_text(
+    aes(label = paste0(round(percent, 1), "%")),
+    position = position_dodge(width = 0.75),
+    vjust = -0.25,
+    size = 3
+  ) +
+  scale_y_continuous(labels = label_percent(scale = 1), limits = c(0, 105)) +
+  labs(
+    title = "Readiness for Skill Extraction",
+    subtitle = "Skill labels define targets; job descriptions provide the text signal",
+    x = NULL,
+    y = "Profile coverage",
+    fill = NULL
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 15, hjust = 1))
+
+coverage_plot
+
+ggsave(
+  file.path(eda_dir, "readiness_coverage_plot.png"),
+  coverage_plot,
+  width = 11,
+  height = 6
+)
+```
+
+# Text Signal: How Much Job Description Text Exists?
+
+```{r token-summary}
+token_summary <- combined_profiles |>
+  group_by(dataset) |>
+  summarise(
+    min_tokens = min(profile_token_count),
+    p25_tokens = quantile(profile_token_count, 0.25),
+    median_tokens = median(profile_token_count),
+    mean_tokens = mean(profile_token_count),
+    p75_tokens = quantile(profile_token_count, 0.75),
+    max_tokens = max(profile_token_count),
+    .groups = "drop"
+  )
+
+token_summary
+
+write_csv(token_summary, file.path(eda_dir, "profile_text_token_summary.csv"))
+```
+
+```{r token-distribution, fig.width=11, fig.height=6}
+token_plot <- combined_profiles |>
+  ggplot(aes(x = profile_token_count, fill = dataset)) +
+  geom_histogram(bins = 45, alpha = 0.75, show.legend = FALSE) +
+  facet_wrap(~ dataset, scales = "free_y") +
+  labs(
+    title = "Profile Text Length Distribution",
+    subtitle = "Longer text gives TF-IDF models more evidence for skill prediction",
+    x = "Tokens in combined profile text",
+    y = "Profiles"
+  ) +
+  theme_minimal()
+
+token_plot
+
+ggsave(
+  file.path(eda_dir, "profile_text_token_distribution.png"),
+  token_plot,
+  width = 11,
+  height = 6
+)
+```
+
+# Skill Label Coverage and Imbalance
+
+```{r skill-coverage}
+skill_coverage <- skill_inventory |>
+  rename(total_skill_assignments = total_number_of_skills)
+
+skill_coverage
+
+write_csv(skill_coverage, file.path(eda_dir, "skill_coverage_summary.csv"))
+```
+
+```{r top-skills, fig.width=12, fig.height=8}
+top_skills <- skills_long |>
+  count(dataset, skill, sort = TRUE) |>
+  group_by(dataset) |>
+  slice_max(order_by = n, n = 20, with_ties = FALSE) |>
+  ungroup()
+
+top_skills_plot <- top_skills |>
+  mutate(skill = reorder_within(skill, n, dataset)) |>
+  ggplot(aes(x = skill, y = n, fill = dataset)) +
+  geom_col(show.legend = FALSE) +
+  coord_flip() +
+  facet_wrap(~ dataset, scales = "free_y") +
+  scale_x_reordered() +
+  labs(
+    title = "Top 20 Skill Labels by Dataset",
+    subtitle = "The most common labels dominate multi-label model performance",
+    x = NULL,
+    y = "Profiles with skill"
+  ) +
+  theme_minimal()
+
+top_skills_plot
+
+write_csv(top_skills, file.path(eda_dir, "top_20_skills_by_dataset.csv"))
+ggsave(
+  file.path(eda_dir, "top_20_skills_by_dataset.png"),
+  top_skills_plot,
+  width = 12,
+  height = 8
+)
+```
+
+```{r long-tail-skills, fig.width=11, fig.height=6}
+skill_frequency_rank <- skills_long |>
+  count(dataset, skill, sort = TRUE) |>
+  group_by(dataset) |>
+  arrange(desc(n), .by_group = TRUE) |>
+  mutate(skill_rank = row_number()) |>
+  ungroup()
+
+long_tail_plot <- skill_frequency_rank |>
+  ggplot(aes(x = skill_rank, y = n, color = dataset)) +
+  geom_line(linewidth = 0.9) +
+  scale_x_log10(labels = comma) +
+  scale_y_log10(labels = comma) +
+  labs(
+    title = "Skill Label Long Tail",
+    subtitle = "A few skills are common; many skills appear rarely and are harder to learn",
+    x = "Skill rank, log scale",
+    y = "Profiles with skill, log scale",
+    color = NULL
+  ) +
+  theme_minimal()
+
+long_tail_plot
+
+ggsave(
+  file.path(eda_dir, "skill_label_long_tail.png"),
+  long_tail_plot,
+  width = 11,
+  height = 6
+)
+```
+
+# Text Terms Most Available for Modeling
+
+```{r top-profile-terms}
+top_terms <- combined_profiles |>
+  select(dataset, profile_id, profile_text) |>
+  unnest_tokens(term, profile_text) |>
+  anti_join(stop_words, by = c("term" = "word")) |>
+  filter(str_detect(term, "[a-z]"), nchar(term) > 2) |>
+  count(dataset, term, sort = TRUE) |>
+  group_by(dataset) |>
+  slice_max(order_by = n, n = 20, with_ties = FALSE) |>
+  ungroup()
+
+top_terms
+
+write_csv(top_terms, file.path(eda_dir, "top_profile_text_terms.csv"))
+```
+
+```{r top-profile-terms-plot, fig.width=12, fig.height=8}
+top_terms_plot <- top_terms |>
+  mutate(term = reorder_within(term, n, dataset)) |>
+  ggplot(aes(x = term, y = n, fill = dataset)) +
+  geom_col(show.legend = FALSE) +
+  coord_flip() +
+  facet_wrap(~ dataset, scales = "free_y") +
+  scale_x_reordered() +
+  labs(
+    title = "Most Frequent Profile Text Terms",
+    subtitle = "These terms are the strongest raw text signals available before TF-IDF weighting",
+    x = NULL,
+    y = "Term count"
+  ) +
+  theme_minimal()
+
+top_terms_plot
+
+ggsave(
+  file.path(eda_dir, "top_profile_text_terms.png"),
+  top_terms_plot,
+  width = 12,
+  height = 8
+)
+```
+
+# Do Skill Labels Appear in Job Description Text?
+
+```{r explicit-skill-mentions}
+# This checks whether the skill label itself appears in the profile text. The
+# model can still learn implicit signals, but explicit mentions are easier.
+skill_mentions <- skills_long |>
+  left_join(
+    combined_profiles |> select(dataset, profile_id, profile_text),
+    by = c("dataset", "profile_id")
+  ) |>
+  mutate(skill_explicitly_mentioned = str_detect(profile_text, fixed(skill))) |>
+  group_by(dataset) |>
+  summarise(
+    skill_assignments = n(),
+    explicit_skill_mentions = sum(skill_explicitly_mentioned, na.rm = TRUE),
+    pct_explicit_mentions = explicit_skill_mentions / skill_assignments * 100,
+    .groups = "drop"
+  )
+
+skill_mentions
+
+write_csv(skill_mentions, file.path(eda_dir, "explicit_skill_mentions_summary.csv"))
+```
+
+```{r explicit-skill-mentions-plot, fig.width=10, fig.height=5}
+skill_mentions_plot <- skill_mentions |>
+  ggplot(aes(x = dataset, y = pct_explicit_mentions, fill = dataset)) +
+  geom_col(show.legend = FALSE) +
+  geom_text(aes(label = paste0(round(pct_explicit_mentions, 1), "%")), vjust = -0.25) +
+  scale_y_continuous(labels = label_percent(scale = 1), limits = c(0, 105)) +
+  labs(
+    title = "How Often Are Skill Labels Explicitly Mentioned in Profile Text?",
+    subtitle = "Lower percentages mean models must infer skills from surrounding job language",
+    x = NULL,
+    y = "Skill assignments explicitly mentioned"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 15, hjust = 1))
+
+skill_mentions_plot
+
+ggsave(
+  file.path(eda_dir, "explicit_skill_mentions_plot.png"),
+  skill_mentions_plot,
+  width = 10,
+  height = 5
+)
+```
+
+# External Validation Drift
+
+```{r external-drift}
+training_skills <- skills_long |>
+  filter(dataset == "5k training dataset") |>
+  distinct(skill) |>
+  pull(skill)
+
+external_skills <- skills_long |>
+  filter(dataset == "KSB alumni external validation") |>
+  distinct(skill) |>
+  pull(skill)
+
+external_overlap <- tibble(
+  external_unique_skills = length(external_skills),
+  external_skills_seen_in_training = sum(external_skills %in% training_skills),
+  external_skills_unseen_in_training = sum(!external_skills %in% training_skills),
+  pct_external_skills_seen_in_training = mean(external_skills %in% training_skills) * 100
+)
+
+external_overlap
+
+write_csv(external_overlap, file.path(eda_dir, "external_skill_overlap_with_training.csv"))
+```
+
+```{r modeled-skill-coverage}
+# The current external validation modeling file evaluates the 100 modeled labels.
+# This table shows how many of the external validation skill assignments fall
+# inside that model label space.
+external_model_metrics_path <- file.path(
+  processed_dir,
+  "external_validation_model_outputs",
+  "external_validation_all_model_results.rds"
+)
+
+if (file.exists(external_model_metrics_path)) {
+  external_model_results <- readRDS(external_model_metrics_path)
+  modeled_skills <- external_model_results$retained_skills
+} else {
+  split_objects <- readRDS(file.path(processed_dir, "train_validation_test_split.rds"))
+  y_train <- as.matrix(split_objects$y_train)
+  label_order <- order(colMeans(y_train), decreasing = TRUE)
+  modeled_skills <- colnames(y_train)[label_order[seq_len(min(100, ncol(y_train)))]]
+}
+
+modeled_skill_coverage <- skills_long |>
+  filter(dataset == "KSB alumni external validation") |>
+  mutate(in_modeled_skill_space = skill %in% modeled_skills) |>
+  summarise(
+    external_skill_assignments = n(),
+    assignments_in_100_skill_model_space = sum(in_modeled_skill_space),
+    pct_assignments_in_100_skill_model_space = mean(in_modeled_skill_space) * 100,
+    unique_external_skills = n_distinct(skill),
+    unique_external_skills_in_100_skill_model_space = n_distinct(skill[in_modeled_skill_space])
+  )
+
+modeled_skill_coverage
+
+write_csv(modeled_skill_coverage, file.path(eda_dir, "external_modeled_skill_coverage.csv"))
+```
+
+# Relationship Between Text Length and Skill Labels
+
+```{r text-length-vs-skills, fig.width=11, fig.height=6}
+text_skill_plot <- combined_profiles |>
+  ggplot(aes(x = profile_token_count, y = skill_count, color = dataset)) +
+  geom_point(alpha = 0.35) +
+  geom_smooth(method = "loess", se = FALSE) +
+  facet_wrap(~ dataset, scales = "free") +
+  labs(
+    title = "Do Longer Job Profiles Have More Skill Labels?",
+    subtitle = "More profile text can expose more skills, but also introduces noise",
+    x = "Profile text tokens",
+    y = "Skill labels per profile",
+    color = NULL
+  ) +
+  theme_minimal()
+
+text_skill_plot
+
+ggsave(
+  file.path(eda_dir, "text_length_vs_skill_count.png"),
+  text_skill_plot,
+  width = 11,
+  height = 6
+)
+```
+
+# Model-Aware EDA: TF-IDF Vocabulary and Sparsity
+
+**Non-technical explanation.** This section checks whether the profile text has
+enough repeated language for a model to learn from. A model cannot learn well if
+nearly every word appears only once, or if most profiles share very few terms.
+
+**Technical explanation.** Logistic Regression, KNN, and XGBoost use the TF-IDF
+feature space created from `profile_text`. Text models usually create a very
+sparse document-term matrix: most profiles contain only a small fraction of all
+vocabulary terms. This is normal, but extreme sparsity can weaken KNN distance
+calculations and make rare-term patterns harder for tree-based models to learn.
+
+```{r tfidf-vocabulary-sparsity}
+profile_terms <- combined_profiles |>
+  select(dataset, profile_id, profile_text) |>
+  unnest_tokens(term, profile_text) |>
+  anti_join(stop_words, by = c("term" = "word")) |>
+  filter(str_detect(term, "[a-z]"), nchar(term) > 2)
+
+profile_term_counts <- profile_terms |>
+  count(dataset, profile_id, term, name = "term_count")
+
+vocabulary_summary <- profile_term_counts |>
+  group_by(dataset) |>
+  summarise(
+    profiles = n_distinct(profile_id),
+    vocabulary_size = n_distinct(term),
+    observed_profile_term_pairs = n(),
+    possible_profile_term_pairs = profiles * vocabulary_size,
+    tfidf_space_sparsity_pct =
+      (1 - observed_profile_term_pairs / possible_profile_term_pairs) * 100,
+    avg_unique_terms_per_profile = observed_profile_term_pairs / profiles,
+    .groups = "drop"
+  )
+
+vocabulary_summary
+
+write_csv(
+  vocabulary_summary,
+  file.path(eda_dir, "tfidf_vocabulary_sparsity_summary.csv")
+)
+```
+
+```{r term-document-frequency, fig.width=11, fig.height=6}
+term_document_frequency <- profile_term_counts |>
+  count(dataset, term, name = "document_frequency") |>
+  group_by(dataset) |>
+  mutate(term_rank = row_number(desc(document_frequency))) |>
+  ungroup()
+
+term_document_frequency_plot <- term_document_frequency |>
+  ggplot(aes(x = term_rank, y = document_frequency, color = dataset)) +
+  geom_line(linewidth = 0.8) +
+  scale_x_log10(labels = comma) +
+  scale_y_log10(labels = comma) +
+  labs(
+    title = "Document Frequency of Profile Text Terms",
+    subtitle = "A steep long tail means many terms appear in very few profiles",
+    x = "Term rank, log scale",
+    y = "Profiles containing term, log scale",
+    color = NULL
+  ) +
+  theme_minimal()
+
+term_document_frequency_plot
+
+ggsave(
+  file.path(eda_dir, "term_document_frequency_long_tail.png"),
+  term_document_frequency_plot,
+  width = 11,
+  height = 6
+)
+```
+
+**Interpretation for modeling.** High sparsity is expected in NLP, but it means
+KNN may struggle because most profiles are far apart in the feature space.
+Logistic Regression is usually more stable for sparse TF-IDF features. XGBoost
+may still perform well, but it needs careful threshold tuning because it can
+learn common-skill patterns more easily than rare-skill patterns.
+
+# Profiles with No Skill Labels
+
+**Non-technical explanation.** Profiles with no skill labels are not useless.
+They teach the model what a profile with no observable modeled skills looks like.
+Removing them can make the model too aggressive and cause it to predict skills
+too often.
+
+**Technical explanation.** In a multi-label target matrix, profiles with zero
+skills become all-zero target rows. These rows are important negative examples.
+Removing them changes the base rate of positive labels, inflates label density,
+and can bias precision/recall estimates.
+
+```{r zero-skill-profile-diagnostics}
+zero_skill_profile_summary <- combined_profiles |>
+  mutate(has_any_skill = skill_count > 0) |>
+  group_by(dataset, has_any_skill) |>
+  summarise(
+    profiles = n(),
+    mean_profile_tokens = mean(profile_token_count),
+    median_profile_tokens = median(profile_token_count),
+    pct_with_current_job_description = mean(has_current_job_description == 1) * 100,
+    pct_with_previous_job_description = mean(has_previous_job_description == 1) * 100,
+    .groups = "drop"
+  ) |>
+  mutate(skill_label_status = if_else(has_any_skill, "Has at least one skill", "Has zero skills")) |>
+  select(dataset, skill_label_status, everything(), -has_any_skill)
+
+zero_skill_profile_summary
+
+write_csv(
+  zero_skill_profile_summary,
+  file.path(eda_dir, "zero_skill_profile_diagnostics.csv")
+)
+```
+
+```{r zero-skill-profile-plot, fig.width=10, fig.height=5}
+zero_skill_profile_plot <- combined_profiles |>
+  mutate(skill_label_status = if_else(skill_count > 0, "Has at least one skill", "Has zero skills")) |>
+  count(dataset, skill_label_status) |>
+  group_by(dataset) |>
+  mutate(percent = n / sum(n) * 100) |>
+  ungroup() |>
+  ggplot(aes(x = dataset, y = percent, fill = skill_label_status)) +
+  geom_col(position = position_dodge(width = 0.75), width = 0.7) +
+  geom_text(
+    aes(label = paste0(round(percent, 1), "%")),
+    position = position_dodge(width = 0.75),
+    vjust = -0.25,
+    size = 3
+  ) +
+  scale_y_continuous(labels = label_percent(scale = 1), limits = c(0, 105)) +
+  labs(
+    title = "Profiles With and Without Skill Labels",
+    subtitle = "Zero-skill profiles provide important negative examples for the model",
+    x = NULL,
+    y = "Percent of profiles",
+    fill = NULL
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 15, hjust = 1))
+
+zero_skill_profile_plot
+
+ggsave(
+  file.path(eda_dir, "zero_skill_profile_plot.png"),
+  zero_skill_profile_plot,
+  width = 10,
+  height = 5
+)
+```
+
+# Text-to-Skill Signal Strength
+
+**Non-technical explanation.** This section checks whether certain words in the
+profile text are meaningfully connected to specific skills. For example, if
+profiles labeled with `python` also contain words like `data`, `analysis`,
+`automation`, or `machine`, that gives the model a real signal.
+
+**Technical explanation.** The table below estimates token-skill association
+using a simple lift ratio. Lift compares how often a term appears among profiles
+with a given skill versus how often it appears overall. A lift greater than 1
+means the term is more common among profiles with that skill than in the full
+dataset.
+
+```{r token-skill-association}
+# Focus on modeled skills so the signal check matches the downstream model label space.
+modeled_skills_available <- modeled_skills[modeled_skills %in% training_skills]
+selected_signal_skills <- modeled_skills_available[seq_len(min(15, length(modeled_skills_available)))]
+
+training_profiles <- combined_profiles |>
+  filter(dataset == "5k training dataset") |>
+  select(dataset, profile_id, profile_text)
+
+training_profile_terms <- training_profiles |>
+  unnest_tokens(term, profile_text) |>
+  anti_join(stop_words, by = c("term" = "word")) |>
+  filter(str_detect(term, "[a-z]"), nchar(term) > 2) |>
+  distinct(profile_id, term)
+
+training_skill_profile_map <- skills_long |>
+  filter(dataset == "5k training dataset", skill %in% selected_signal_skills) |>
+  distinct(profile_id, skill)
+
+training_profile_count <- n_distinct(training_profiles$profile_id)
+
+term_base_rates <- training_profile_terms |>
+  count(term, name = "profiles_with_term") |>
+  mutate(base_rate = profiles_with_term / training_profile_count)
+
+skill_profile_counts <- training_skill_profile_map |>
+  count(skill, name = "profiles_with_skill")
+
+token_skill_association <- training_skill_profile_map |>
+  inner_join(training_profile_terms, by = "profile_id") |>
+  count(skill, term, name = "profiles_with_skill_and_term") |>
+  left_join(skill_profile_counts, by = "skill") |>
+  left_join(term_base_rates, by = "term") |>
+  mutate(
+    term_rate_within_skill = profiles_with_skill_and_term / profiles_with_skill,
+    lift = term_rate_within_skill / base_rate
+  ) |>
+  filter(profiles_with_skill_and_term >= 3, profiles_with_term >= 5) |>
+  group_by(skill) |>
+  slice_max(order_by = lift, n = 8, with_ties = FALSE) |>
+  arrange(skill, desc(lift)) |>
+  ungroup()
+
+token_skill_association
+
+write_csv(
+  token_skill_association,
+  file.path(eda_dir, "token_skill_association_lift.csv")
+)
+```
+
+```{r token-skill-association-plot, fig.width=13, fig.height=9}
+if (nrow(token_skill_association) > 0) {
+  token_skill_association_plot <- token_skill_association |>
+    mutate(term = reorder_within(term, lift, skill)) |>
+    ggplot(aes(x = term, y = lift, fill = skill)) +
+    geom_col(show.legend = FALSE) +
+    coord_flip() +
+    facet_wrap(~ skill, scales = "free_y") +
+    scale_x_reordered() +
+    labs(
+      title = "Strongest Text Terms Associated with Selected Skills",
+      subtitle = "Lift greater than 1 means the term is more common among profiles with that skill",
+      x = NULL,
+      y = "Association lift"
+    ) +
+    theme_minimal()
+
+  token_skill_association_plot
+
+  ggsave(
+    file.path(eda_dir, "token_skill_association_lift.png"),
+    token_skill_association_plot,
+    width = 13,
+    height = 9
+  )
+}
+```
+
+**Interpretation for modeling.** If the lift table contains intuitive terms for
+major skills, that supports the use of TF-IDF models. If the terms look generic
+or unrelated, then the model may be learning broad profile style rather than
+actual skill evidence.
+
+# Multi-Label Skill Co-Occurrence
+
+**Non-technical explanation.** Skills often appear together. A profile with
+`data analysis` may also list `excel`, `sql`, or `python`. Understanding these
+combinations helps explain why the task is multi-label rather than single-label.
+
+**Technical explanation.** This section identifies frequent skill pairs within
+the same profile. Co-occurrence can support interpretation and model diagnostics,
+although the current one-vs-rest model setup predicts each skill independently.
+
+```{r skill-cooccurrence}
+cooccurrence_skills <- skills_long |>
+  filter(dataset == "5k training dataset", skill %in% modeled_skills) |>
+  distinct(profile_id, skill)
+
+skill_pairs <- cooccurrence_skills |>
+  inner_join(cooccurrence_skills, by = "profile_id", suffix = c("_1", "_2")) |>
+  filter(skill_1 < skill_2) |>
+  count(skill_1, skill_2, name = "profiles_with_both") |>
+  arrange(desc(profiles_with_both))
+
+top_skill_pairs <- skill_pairs |>
+  slice_max(order_by = profiles_with_both, n = 25, with_ties = FALSE)
+
+top_skill_pairs
+
+write_csv(top_skill_pairs, file.path(eda_dir, "top_skill_cooccurrence_pairs.csv"))
+```
+
+```{r skill-cooccurrence-plot, fig.width=12, fig.height=8}
+if (nrow(top_skill_pairs) > 0) {
+  skill_pair_plot <- top_skill_pairs |>
+    mutate(skill_pair = paste(skill_1, "+", skill_2)) |>
+    mutate(skill_pair = fct_reorder(skill_pair, profiles_with_both)) |>
+    ggplot(aes(x = skill_pair, y = profiles_with_both)) +
+    geom_col() +
+    coord_flip() +
+    labs(
+      title = "Most Common Skill Pairs in the 5k Training Data",
+      subtitle = "Frequently paired skills show the multi-label structure of the problem",
+      x = NULL,
+      y = "Profiles containing both skills"
+    ) +
+    theme_minimal()
+
+  skill_pair_plot
+
+  ggsave(
+    file.path(eda_dir, "top_skill_cooccurrence_pairs.png"),
+    skill_pair_plot,
+    width = 12,
+    height = 8
+  )
+}
+```
+
+# Train vs External Validation Distribution Shift
+
+**Non-technical explanation.** External validation is only fair if the external
+dataset is reasonably comparable to the training data. If the alumni dataset uses
+different language, has shorter or longer text, or contains very different
+skills, model performance may drop even if the model was trained correctly.
+
+**Technical explanation.** This section compares profile-text length and
+skill-label frequency between the 5k training data and the external validation
+set. The Jensen-Shannon divergence score below is a bounded
+distribution-distance measure. Values closer to 0 indicate more similar
+distributions; larger values indicate stronger drift.
+
+```{r text-length-drift}
+text_length_drift <- combined_profiles |>
+  mutate(
+    token_bucket = case_when(
+      profile_token_count == 0 ~ "0 tokens",
+      profile_token_count <= 25 ~ "1-25 tokens",
+      profile_token_count <= 75 ~ "26-75 tokens",
+      profile_token_count <= 150 ~ "76-150 tokens",
+      profile_token_count <= 300 ~ "151-300 tokens",
+      TRUE ~ "301+ tokens"
+    ),
+    token_bucket = factor(
+      token_bucket,
+      levels = c("0 tokens", "1-25 tokens", "26-75 tokens", "76-150 tokens", "151-300 tokens", "301+ tokens")
+    )
+  ) |>
+  count(dataset, token_bucket) |>
+  group_by(dataset) |>
+  mutate(percent = n / sum(n) * 100) |>
+  ungroup()
+
+text_length_drift
+
+write_csv(text_length_drift, file.path(eda_dir, "text_length_distribution_drift.csv"))
+```
+
+```{r text-length-drift-plot, fig.width=11, fig.height=6}
+text_length_drift_plot <- text_length_drift |>
+  ggplot(aes(x = token_bucket, y = percent, fill = dataset)) +
+  geom_col(position = position_dodge(width = 0.75), width = 0.7) +
+  scale_y_continuous(labels = label_percent(scale = 1)) +
+  labs(
+    title = "Training vs External Profile Text Length",
+    subtitle = "Large differences may indicate external validation drift",
+    x = "Profile text length bucket",
+    y = "Percent of profiles",
+    fill = NULL
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 25, hjust = 1))
+
+text_length_drift_plot
+
+ggsave(
+  file.path(eda_dir, "text_length_distribution_drift.png"),
+  text_length_drift_plot,
+  width = 11,
+  height = 6
+)
+```
+
+```{r skill-frequency-drift-js}
+js_divergence <- function(p, q) {
+  eps <- 1e-12
+  p <- p + eps
+  q <- q + eps
+  p <- p / sum(p)
+  q <- q / sum(q)
+  m <- 0.5 * (p + q)
+  0.5 * sum(p * log(p / m)) + 0.5 * sum(q * log(q / m))
+}
+
+skill_distribution_wide <- skills_long |>
+  filter(skill %in% modeled_skills) |>
+  count(dataset, skill, name = "skill_frequency") |>
+  complete(dataset, skill = modeled_skills, fill = list(skill_frequency = 0)) |>
+  group_by(dataset) |>
+  mutate(skill_probability = skill_frequency / sum(skill_frequency)) |>
+  ungroup() |>
+  select(dataset, skill, skill_probability) |>
+  pivot_wider(names_from = dataset, values_from = skill_probability, values_fill = 0)
+
+training_col <- "5k training dataset"
+external_col <- "KSB alumni external validation"
+
+skill_distribution_shift_summary <- tibble(
+  compared_label_space = "Modeled skills only",
+  jensen_shannon_divergence = js_divergence(
+    skill_distribution_wide[[training_col]],
+    skill_distribution_wide[[external_col]]
+  )
+)
+
+skill_distribution_shift_summary
+
+write_csv(
+  skill_distribution_shift_summary,
+  file.path(eda_dir, "skill_distribution_shift_js_divergence.csv")
+)
+```
+
+```{r skill-frequency-comparison, fig.width=10, fig.height=7}
+skill_frequency_comparison <- skills_long |>
+  filter(skill %in% modeled_skills) |>
+  count(dataset, skill, name = "skill_frequency") |>
+  group_by(dataset) |>
+  mutate(skill_rate = skill_frequency / sum(skill_frequency)) |>
+  ungroup() |>
+  select(dataset, skill, skill_rate) |>
+  pivot_wider(names_from = dataset, values_from = skill_rate, values_fill = 0) |>
+  mutate(abs_rate_difference = abs(.data[[training_col]] - .data[[external_col]])) |>
+  arrange(desc(abs_rate_difference))
+
+skill_frequency_comparison |>
+  slice_head(n = 20)
+
+write_csv(
+  skill_frequency_comparison,
+  file.path(eda_dir, "skill_frequency_train_external_comparison.csv")
+)
+```
+
+```{r skill-frequency-comparison-plot, fig.width=12, fig.height=7}
+top_shifted_skills <- skill_frequency_comparison |>
+  slice_head(n = 15) |>
+  select(skill, all_of(training_col), all_of(external_col)) |>
+  pivot_longer(cols = -skill, names_to = "dataset", values_to = "skill_rate")
+
+skill_frequency_comparison_plot <- top_shifted_skills |>
+  mutate(skill = fct_reorder(skill, skill_rate, .fun = max)) |>
+  ggplot(aes(x = skill, y = skill_rate, fill = dataset)) +
+  geom_col(position = position_dodge(width = 0.75), width = 0.7) +
+  coord_flip() +
+  scale_y_continuous(labels = label_percent()) +
+  labs(
+    title = "Modeled Skills with Largest Training vs External Frequency Differences",
+    subtitle = "Large differences can explain weaker external validation performance",
+    x = NULL,
+    y = "Share of modeled-skill assignments",
+    fill = NULL
+  ) +
+  theme_minimal()
+
+skill_frequency_comparison_plot
+
+ggsave(
+  file.path(eda_dir, "skill_frequency_train_external_comparison.png"),
+  skill_frequency_comparison_plot,
+  width = 12,
+  height = 7
+)
+```
+
+# Model Readiness and Risk Diagnostics
+
+**Non-technical explanation.** This section translates the EDA into modeling
+decisions. It explains what the dataset makes easy, what it makes difficult, and
+what must be handled carefully before reporting final model results.
+
+**Technical explanation.** The main risks are label imbalance, sparse TF-IDF
+features, distribution shift, and incomplete external label-space coverage.
+These risks affect model selection, threshold tuning, and evaluation
+interpretation.
+
+```{r model-readiness-risk-table}
+model_readiness_risks <- tibble::tribble(
+  ~risk_area, ~plain_language_meaning, ~technical_meaning, ~recommended_action,
+  "Sparse text features",
+  "Each profile uses only a small portion of the full vocabulary.",
+  "The TF-IDF matrix is high-dimensional and mostly zeros.",
+  "Use regularized Logistic Regression as a strong sparse-text baseline; interpret KNN cautiously.",
+  "Skill-label imbalance",
+  "Some skills appear often while many appear rarely.",
+  "Macro metrics will be lower than micro metrics because rare labels are harder to learn.",
+  "Report micro-F1, macro-F1, precision, recall, and per-skill performance for top modeled skills.",
+  "Zero-skill profiles",
+  "Some profiles may not contain any modeled skills.",
+  "All-zero target rows provide negative examples and protect against overprediction.",
+  "Keep zero-skill profiles unless they are confirmed data-quality errors.",
+  "External validation drift",
+  "The alumni data may not look exactly like the 5k training data.",
+  "Different text length or skill distributions can lower out-of-sample performance.",
+  "Explain external validation results separately from internal test results.",
+  "Limited modeled label space",
+  "The model can only predict skills included in the retained skill list.",
+  "External labels outside the modeled skill space are out-of-vocabulary targets.",
+  "Report coverage of external labels inside the 100-skill model space before judging performance."
+)
+
+model_readiness_risks
+
+write_csv(model_readiness_risks, file.path(eda_dir, "model_readiness_risk_table.csv"))
+```
+
+**Modeling recommendation.** Based on this EDA, the final modeling workflow
+should keep Logistic Regression, KNN, and XGBoost, but the evaluation should not
+rely on accuracy. The correct evaluation frame is multi-label performance: micro
+precision, micro recall, micro F1, macro precision, macro recall, macro F1, and
+per-skill diagnostics. Threshold tuning is necessary because the default
+probability cutoff may not balance precision and recall well for rare skills.
+
+# Key Takeaways
+
+```{r key-takeaways}
+takeaways <- tibble::tribble(
+  ~finding, ~why_it_matters_for_skill_extraction,
+  "Skill labels are multi-label and highly imbalanced.",
+  "F1-micro is useful, but common skills can dominate model performance. Per-skill review is important.",
+  "Job descriptions and titles provide the model's main text signal.",
+  "Profiles without meaningful descriptions are harder to classify because the model has less evidence.",
+  "The external alumni dataset is smaller but directly tests out-of-sample generalization.",
+  "This is the best check of whether the training workflow transfers to KSB alumni profiles.",
+  "Explicit skill mentions are only part of the problem.",
+  "When skill names are not directly in the text, models must infer skills from job duties, titles, industries, and context.",
+  "The 100-skill model space should be checked against external labels.",
+  "If many external skills are outside the modeled label space, the model cannot predict them regardless of text quality."
+)
+
+takeaways
+
+write_csv(takeaways, file.path(eda_dir, "eda_key_takeaways.csv"))
+```

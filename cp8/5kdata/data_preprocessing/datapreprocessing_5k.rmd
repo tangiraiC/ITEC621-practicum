@@ -4,9 +4,15 @@ author: "Lincoln Chanakira"
 output: html_document
 ---
 
+## File Overview
+
+This notebook cleans the prepared 5k LinkedIn data before modeling. It standardizes text and categorical fields, parses skills, creates simple profile indicators, checks data quality, and saves the preprocessed CSV used by feature encoding.
+
 This notebook takes the prepared LinkedIn dataset from the data preparation step and cleans it for modeling. The main goals are to standardize text, normalize categorical fields, parse skills into reusable lists, add simple feature flags, and save a consistent preprocessed dataset.
 
 The setup chunk controls how code, warnings, and messages appear in the rendered HTML output.
+
+**Summary:** This chunk sets global R Markdown options so rendered reports show code while suppressing warnings and messages. It also loads any packages needed immediately by this notebook.
 
 ```{r setup, include=FALSE}
 # Set global knitting options for cleaner rendered output.
@@ -16,6 +22,8 @@ knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 # Load Packages
 
 This block loads the packages used for importing CSV files, transforming data frames, cleaning strings, and reshaping summary tables.
+
+**Summary:** This chunk loads the R packages needed in this file. Loading them at the top makes the dependencies explicit before data processing begins.
 
 ```{r packages}
 # Load packages for reading, cleaning, transforming, and summarizing the data.
@@ -28,6 +36,8 @@ library(tidyr)
 # Import Prepared 5k Dataset
 
 This block reads the prepared dataset that was created in `datapreparation.rmd`. It also prints the dataset dimensions and a quick preview so we can confirm the expected file was loaded.
+
+**Summary:** This chunk reads the prepared CSV produced by the data preparation step. The preview checks that the expected profile fields are available for cleaning.
 
 ```{r import-prepared-data}
 # Import the prepared LinkedIn dataset that will be cleaned for modeling.
@@ -43,6 +53,8 @@ head(linkedin_prepared)
 # Helper Functions
 
 This block defines reusable cleaning functions. Keeping the cleaning rules in functions makes the preprocessing steps more consistent and easier to update later.
+
+**Summary:** This chunk defines reusable helper functions so cleaning, parsing, thresholding, and evaluation rules stay consistent throughout the notebook.
 
 ```{r helper-functions}
 # Define reusable text, category, identifier, and skills parsing helpers.
@@ -95,6 +107,8 @@ collapse_skills <- function(skill_list) {
 
 This block applies the main preprocessing rules. It standardizes column names, cleans text fields, fills missing numeric experience values with zero, creates description indicator variables, combines job text into one `profile_text` field, removes blank LinkedIn URLs, and deduplicates profiles.
 
+**Summary:** This chunk applies the main cleaning rules to profile fields. It standardizes text and categories, fills missing numeric values, creates description flags, builds combined profile text, removes blank profile URLs, and deduplicates profiles.
+
 ```{r preprocess-data}
 # Clean and standardize the profile-level fields used later for encoding and modeling.
 linkedin_preprocessed <- linkedin_prepared |>
@@ -146,6 +160,8 @@ head(linkedin_preprocessed)
 
 This block converts the cleaned skills string into a list of unique skills for each profile. It also counts the number of skills per profile, which becomes a useful diagnostic and modeling feature.
 
+**Summary:** This chunk converts the cleaned skills string into a list of unique skills for each profile. The skill count becomes both a diagnostic and a useful field for later filtering.
+
 ```{r skills-processing}
 # Parse each profile's skills into a list and count the number of unique skills.
 linkedin_preprocessed <- linkedin_preprocessed |>
@@ -162,6 +178,8 @@ linkedin_preprocessed |>
 # Missing Values Check
 
 This block checks how many missing values remain in each column after preprocessing. This is a quality-control step to make sure the modeling inputs do not have unexpected gaps.
+
+**Summary:** This chunk counts missing values after preprocessing. It is a quality-control check to confirm the cleaned dataset does not contain unexpected gaps.
 
 ```{r missing-values}
 # Summarize remaining missing values by column after cleaning.
@@ -181,6 +199,8 @@ missing_summary
 
 This block reports high-level checks for the cleaned dataset. These summary values help confirm that the profile count, description coverage, and skill counts look reasonable before encoding.
 
+**Summary:** This chunk summarizes the cleaned data after preprocessing. It checks profile counts, description coverage, and skill counts before saving the file.
+
 ```{r preprocessing-checks}
 # Report summary diagnostics for profile coverage and skill counts.
 linkedin_preprocessed |>
@@ -196,6 +216,8 @@ linkedin_preprocessed |>
 # Save Preprocessed Dataset
 
 This block saves the cleaned dataset to `data/processed`. The `skills_list` column is collapsed back into text first because CSV files cannot store R list columns directly.
+
+**Summary:** This chunk saves the cleaned profile dataset for feature encoding. The skills list is collapsed back into text because CSV files cannot directly store R list columns.
 
 ```{r save-preprocessed-data}
 # Save the cleaned dataset for the model input encoding step.

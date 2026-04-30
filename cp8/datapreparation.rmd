@@ -138,10 +138,12 @@ ksb_external_validation_prepared <- ksb_external_validation |>
   mutate(
     linkedin_url = as.character(linkedin_url),
     headline = as.character(headline),
-    Skills = as.character(Skills)
+    Skills = ifelse(is.na(Skills), "", as.character(Skills)),
+    Skills = trimws(Skills)
   ) |>
-  # External validation labels come from Skills, so remove rows without labels.
-  filter(!is.na(Skills), trimws(Skills) != "") |>
+  # Keep rows without Skills as zero-skill external validation examples. These
+  # profiles still test whether models overpredict skills when no label is
+  # observed in the validation file.
   select(
     linkedin_url,
     headline,

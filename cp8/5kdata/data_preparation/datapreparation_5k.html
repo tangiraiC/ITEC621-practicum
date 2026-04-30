@@ -167,15 +167,28 @@ pre code {
 </div>
 
 
+<div id="file-overview" class="section level2">
+<h2>File Overview</h2>
+<p>This notebook starts the 5k LinkedIn modeling workflow. It imports the raw Excel scrape, checks that the data loaded correctly, removes fields that are not needed for modeling, and writes a prepared CSV for the cleaning step.</p>
+<p>This notebook imports the raw 5k LinkedIn scrape, removes fields that are not needed for modeling, and saves a smaller prepared CSV for the next preprocessing step.</p>
+<p>The setup chunk controls how code, warnings, and messages appear in the rendered HTML output.</p>
+<p><strong>Summary:</strong> This chunk sets global R Markdown options so rendered reports show code while suppressing warnings and messages. It also loads any packages needed immediately by this notebook.</p>
+</div>
 <div id="load-packages" class="section level1">
 <h1>Load Packages</h1>
-<pre class="r"><code>library(readr)
+<p>This block loads the packages used to read the Excel source file, write CSV output, and select or inspect columns.</p>
+<p><strong>Summary:</strong> This chunk loads the R packages needed in this file. Loading them at the top makes the dependencies explicit before data processing begins.</p>
+<pre class="r"><code># Load packages for importing Excel data and basic data manipulation.
+library(readr)
 library(readxl)
 library(dplyr)</code></pre>
 </div>
 <div id="import-dataset" class="section level1">
 <h1>Import Dataset</h1>
-<pre class="r"><code>linkedin_full_path &lt;- &quot;../data/raw/LinkedIn_Scrape_full_5865.xlsx&quot;
+<p>This block reads the raw LinkedIn scrape from the Excel workbook. It imports the <code>Scraped data</code> sheet and prints the dataset dimensions so the row and column counts can be checked immediately.</p>
+<p><strong>Summary:</strong> This chunk imports the raw 5k LinkedIn scrape from Excel. The dimension printout confirms that the expected source data was loaded before any cleaning happens.</p>
+<pre class="r"><code># Read the raw 5k LinkedIn scrape from the source workbook.
+linkedin_full_path &lt;- &quot;../../../data/raw/LinkedIn_Scrape_full_5865.xlsx&quot;
 
 linkedin_full &lt;- read_excel(linkedin_full_path, sheet = &quot;Scraped data&quot;)
 
@@ -184,7 +197,10 @@ cat(&quot;LinkedIn full shape:&quot;, dim(linkedin_full), &quot;\n&quot;)</code>
 </div>
 <div id="inspect-imported-data" class="section level1">
 <h1>Inspect Imported Data</h1>
-<pre class="r"><code>glimpse(linkedin_full)</code></pre>
+<p>This block previews the imported data structure. <code>glimpse()</code> shows column names and data types, while <code>head()</code> shows the first few rows.</p>
+<p><strong>Summary:</strong> This chunk previews the raw dataset structure and first rows. It is used to verify column names, data types, and obvious data issues before dropping fields.</p>
+<pre class="r"><code># Inspect the raw data before removing unused columns.
+glimpse(linkedin_full)</code></pre>
 <pre><code>## Rows: 5,865
 ## Columns: 32
 ## $ linkedin_url               &lt;chr&gt; &quot;https://www.linkedin.com/in/dalejankowski/…
@@ -239,7 +255,10 @@ cat(&quot;LinkedIn full shape:&quot;, dim(linkedin_full), &quot;\n&quot;)</code>
 </div>
 <div id="remove-columns-and-save-prepared-dataset" class="section level1">
 <h1>Remove Columns and Save Prepared Dataset</h1>
-<pre class="r"><code>columns_to_remove &lt;- c(
+<p>This block drops identifying, date, company-detail, and redundant employment columns that are not used by the modeling workflow. It then saves the prepared version as a CSV for preprocessing.</p>
+<p><strong>Summary:</strong> This chunk removes columns that are not used in the modeling workflow and saves the reduced dataset. This creates a cleaner prepared file for the preprocessing notebook.</p>
+<pre class="r"><code># Remove columns that are not needed downstream and write the prepared dataset.
+columns_to_remove &lt;- c(
   &quot;full_name&quot;,
   &quot;email&quot;,
   &quot;education_start_year&quot;,
@@ -260,13 +279,13 @@ cat(&quot;LinkedIn full shape:&quot;, dim(linkedin_full), &quot;\n&quot;)</code>
 linkedin_prepared &lt;- linkedin_full |&gt;
   select(-any_of(columns_to_remove))
 
-prepared_output_path &lt;- &quot;../data/processed/linkedin_full_5865_prepared.csv&quot;
+prepared_output_path &lt;- &quot;../../../data/processed/linkedin_full_5865_prepared.csv&quot;
 write_csv(linkedin_prepared, prepared_output_path)
 
 cat(&quot;Prepared dataset shape:&quot;, dim(linkedin_prepared), &quot;\n&quot;)</code></pre>
 <pre><code>## Prepared dataset shape: 5865 17</code></pre>
 <pre class="r"><code>cat(&quot;Prepared dataset saved to:&quot;, prepared_output_path, &quot;\n&quot;)</code></pre>
-<pre><code>## Prepared dataset saved to: ../data/processed/linkedin_full_5865_prepared.csv</code></pre>
+<pre><code>## Prepared dataset saved to: ../../../data/processed/linkedin_full_5865_prepared.csv</code></pre>
 <pre class="r"><code>glimpse(linkedin_prepared)</code></pre>
 <pre><code>## Rows: 5,865
 ## Columns: 17

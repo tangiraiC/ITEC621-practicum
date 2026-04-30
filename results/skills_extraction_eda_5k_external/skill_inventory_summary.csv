@@ -1,0 +1,3 @@
+dataset,total_number_of_skills,unique_skills,profiles_with_skills,avg_profiles_per_skill
+5k training dataset,77080,11309,4837,6.815810416482448
+KSB alumni external validation,5586,1939,359,2.88086642599278

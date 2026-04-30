@@ -4,13 +4,29 @@ author: "Lincoln Chanakira"
 output: html_document
 ---
 
+## File Overview
+
+This notebook starts the 5k LinkedIn modeling workflow. It imports the raw Excel scrape, checks that the data loaded correctly, removes fields that are not needed for modeling, and writes a prepared CSV for the cleaning step.
+
+This notebook imports the raw 5k LinkedIn scrape, removes fields that are not needed for modeling, and saves a smaller prepared CSV for the next preprocessing step.
+
+The setup chunk controls how code, warnings, and messages appear in the rendered HTML output.
+
+**Summary:** This chunk sets global R Markdown options so rendered reports show code while suppressing warnings and messages. It also loads any packages needed immediately by this notebook.
+
 ```{r setup, include=FALSE}
+# Set global knitting options for cleaner rendered output.
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 ```
 
 # Load Packages
 
+This block loads the packages used to read the Excel source file, write CSV output, and select or inspect columns.
+
+**Summary:** This chunk loads the R packages needed in this file. Loading them at the top makes the dependencies explicit before data processing begins.
+
 ```{r packages}
+# Load packages for importing Excel data and basic data manipulation.
 library(readr)
 library(readxl)
 library(dplyr)
@@ -18,7 +34,12 @@ library(dplyr)
 
 # Import Dataset
 
+This block reads the raw LinkedIn scrape from the Excel workbook. It imports the `Scraped data` sheet and prints the dataset dimensions so the row and column counts can be checked immediately.
+
+**Summary:** This chunk imports the raw 5k LinkedIn scrape from Excel. The dimension printout confirms that the expected source data was loaded before any cleaning happens.
+
 ```{r import-5k-data}
+# Read the raw 5k LinkedIn scrape from the source workbook.
 linkedin_full_path <- "../../../data/raw/LinkedIn_Scrape_full_5865.xlsx"
 
 linkedin_full <- read_excel(linkedin_full_path, sheet = "Scraped data")
@@ -28,7 +49,12 @@ cat("LinkedIn full shape:", dim(linkedin_full), "\n")
 
 # Inspect Imported Data
 
+This block previews the imported data structure. `glimpse()` shows column names and data types, while `head()` shows the first few rows.
+
+**Summary:** This chunk previews the raw dataset structure and first rows. It is used to verify column names, data types, and obvious data issues before dropping fields.
+
 ```{r inspect-5k-data}
+# Inspect the raw data before removing unused columns.
 glimpse(linkedin_full)
 
 head(linkedin_full)
@@ -36,7 +62,12 @@ head(linkedin_full)
 
 # Remove Columns and Save Prepared Dataset
 
+This block drops identifying, date, company-detail, and redundant employment columns that are not used by the modeling workflow. It then saves the prepared version as a CSV for preprocessing.
+
+**Summary:** This chunk removes columns that are not used in the modeling workflow and saves the reduced dataset. This creates a cleaner prepared file for the preprocessing notebook.
+
 ```{r remove-columns-save}
+# Remove columns that are not needed downstream and write the prepared dataset.
 columns_to_remove <- c(
   "full_name",
   "email",

@@ -1,0 +1,41 @@
+dataset,skill,n
+5k training dataset,leadership,1384
+5k training dataset,microsoft excel,1244
+5k training dataset,microsoft office,1049
+5k training dataset,project management,884
+5k training dataset,customer service,848
+5k training dataset,management,844
+5k training dataset,strategic planning,770
+5k training dataset,public speaking,764
+5k training dataset,data analysis,661
+5k training dataset,communication,647
+5k training dataset,financial analysis,585
+5k training dataset,microsoft word,576
+5k training dataset,marketing,571
+5k training dataset,teamwork,565
+5k training dataset,research,563
+5k training dataset,sales,539
+5k training dataset,social media,525
+5k training dataset,strategy,458
+5k training dataset,team leadership,409
+5k training dataset,finance,408
+KSB alumni external validation,microsoft office,163
+KSB alumni external validation,microsoft excel,158
+KSB alumni external validation,leadership,123
+KSB alumni external validation,microsoft word,115
+KSB alumni external validation,public speaking,94
+KSB alumni external validation,microsoft powerpoint,92
+KSB alumni external validation,customer service,83
+KSB alumni external validation,research,79
+KSB alumni external validation,social media,76
+KSB alumni external validation,teamwork,76
+KSB alumni external validation,data analysis,73
+KSB alumni external validation,management,67
+KSB alumni external validation,project management,65
+KSB alumni external validation,communication,64
+KSB alumni external validation,financial analysis,46
+KSB alumni external validation,time management,44
+KSB alumni external validation,analytical skills,41
+KSB alumni external validation,marketing,41
+KSB alumni external validation,event planning,39
+KSB alumni external validation,sales,38

@@ -1,0 +1,12 @@
+dataset,token_bucket,n,percent
+5k training dataset,0 tokens,161,2.7450980392156863
+5k training dataset,1-25 tokens,2920,49.78687127024723
+5k training dataset,26-75 tokens,1181,20.136402387041773
+5k training dataset,76-150 tokens,877,14.95311167945439
+5k training dataset,151-300 tokens,615,10.485933503836318
+5k training dataset,301+ tokens,111,1.8925831202046037
+KSB alumni external validation,1-25 tokens,476,73.23076923076923
+KSB alumni external validation,26-75 tokens,43,6.615384615384616
+KSB alumni external validation,76-150 tokens,55,8.461538461538462
+KSB alumni external validation,151-300 tokens,60,9.230769230769232
+KSB alumni external validation,301+ tokens,16,2.4615384615384617

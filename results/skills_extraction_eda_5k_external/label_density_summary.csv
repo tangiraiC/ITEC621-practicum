@@ -1,0 +1,3 @@
+dataset,total_number_of_skills,unique_skills,possible_profile_skill_pairs,label_density_pct,assignments_in_top_20_skills,pct_assignments_in_top_20_skills
+5k training dataset,77080,11309,54701633,0.14090987009473738,14294,18.544369486248055
+KSB alumni external validation,5586,1939,696101,0.8024697565439498,1577,28.2312925170068

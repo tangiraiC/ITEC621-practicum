@@ -1,0 +1,3 @@
+dataset,profiles,profiles_with_profile_text,pct_profiles_with_profile_text,profiles_with_current_job_description,pct_profiles_with_current_job_description,profiles_with_previous_job_description,pct_profiles_with_previous_job_description,total_profile_text_tokens,mean_profile_text_tokens,median_profile_text_tokens
+5k training dataset,5865,5704,97.25490196078431,2050,34.95311167945439,2360,40.2387041773231,357478,60.95106564364876,23
+KSB alumni external validation,650,650,100,120,18.461538461538463,172,26.461538461538463,30780,47.353846153846156,9

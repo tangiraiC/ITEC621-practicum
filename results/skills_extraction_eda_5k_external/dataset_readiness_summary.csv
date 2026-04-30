@@ -1,0 +1,3 @@
+dataset,profiles,profiles_with_skills,pct_profiles_with_skills,avg_skills_per_profile,median_skills_per_profile,avg_profile_tokens,median_profile_tokens,pct_profiles_with_current_description,pct_profiles_with_previous_description,avg_experience_count
+5k training dataset,5865,4837,82.47229326513214,13.142369991474851,17,60.95106564364876,23,34.953111679454345,40.23870417732309,6.280306905370844
+KSB alumni external validation,650,359,55.230769230769226,8.593846153846155,6,47.353846153846156,9,18.46153846153847,26.46153846153846,4.664615384615381

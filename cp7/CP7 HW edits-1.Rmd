@@ -29,28 +29,17 @@ library(stopwords)
 
 ```{r}
 # loading the cleaned data
-exp_clean       <- read.csv("data/processed/cleaned_500_experiences.csv",
-                             stringsAsFactors = FALSE)
-currexp_clean   <- read.csv("data/processed/cleaned_500_current_experiences.csv",
-                             stringsAsFactors = FALSE)
-skills_clean    <- read.csv("data/processed/cleaned_500_skills.csv",
-                             stringsAsFactors = FALSE)
-exp_5k_clean    <- read.csv("data/processed/cleaned_5k_experiences.csv",
-                             stringsAsFactors = FALSE)
-skills_5k_clean <- read.csv("data/processed/cleaned_5k_skills.csv",
+exp_clean       <- read.csv("../data/processed/cleaned_500_experiences.csv",
                              stringsAsFactors = FALSE)
 ```
 
-# Checking how many rows and columns each file has
+# Checking how many rows and columns the file has
 ```{r}
 # resource: https://www.w3schools.com/r/r_data_frames.asp
 file_summary <- cbind(
-  File    = c("500 experiences", "500 current experiences", "500 skills",
-              "5k experiences", "5k skills"),
-  Rows    = c(nrow(exp_clean), nrow(currexp_clean), nrow(skills_clean),
-              nrow(exp_5k_clean), nrow(skills_5k_clean)),
-  Columns = c(ncol(exp_clean), ncol(currexp_clean), ncol(skills_clean),
-              ncol(exp_5k_clean), ncol(skills_5k_clean))
+  File    = c("500 experiences"),
+  Rows    = c(nrow(exp_clean)),
+  Columns = c(ncol(exp_clean))
 )
 print(file_summary)
 ```
@@ -59,15 +48,11 @@ print(file_summary)
 ```{r}
 # the names of the columns
 names(exp_clean)
-names(exp_5k_clean)
-names(skills_5k_clean)
 ```
 
 ```{r}
 # to see the structure such as rows, data types and some values
 str(exp_clean)
-str(exp_5k_clean)
-str(skills_5k_clean)
 ```
 
 ## Part 2: Data Quality and Validation
@@ -75,14 +60,11 @@ str(skills_5k_clean)
 ```{r}
 # finding the total missing values
 sum(is.na(exp_clean))
-sum(is.na(exp_5k_clean))
-sum(is.na(skills_5k_clean))
 ```
 
 ```{r}
 # checking to see which column has a missing value
 colSums(is.na(exp_clean))
-colSums(is.na(exp_5k_clean))
 
 # most missing values were related to job started or ended on and other columns
 # like industry and company name. Our key columns such as linkedin url and
@@ -92,7 +74,6 @@ colSums(is.na(exp_5k_clean))
 ```{r}
 # checking for duplicated linkedin urls
 sum(duplicated(exp_clean$linkedinUrl))
-sum(duplicated(exp_5k_clean$linkedinUrl))
 
 # no duplicates in linkedin
 ```
@@ -100,24 +81,16 @@ sum(duplicated(exp_5k_clean$linkedinUrl))
 ```{r}
 # checking for any missing linkedin url links
 sum(is.na(exp_clean$linkedinUrl))
-sum(is.na(exp_5k_clean$linkedin_url))
 
 # no missing urls
 ```
 
 ```{r}
-# checking to see how many profiles have job desc in 500 data and 5k data
+# checking to see how many profiles have job desc in 500 data
 sum(!is.na(exp_clean$jobDescription) & exp_clean$jobDescription != "")
-sum(!is.na(exp_5k_clean$current_job_description) &
-      exp_5k_clean$current_job_description != "")
-
-# finding the percentage of what is in the 5k data
-sum(!is.na(exp_5k_clean$current_job_description) &
-      exp_5k_clean$current_job_description != "") / nrow(exp_5k_clean) * 100
 
 # we have 316/452 profiles with job description in 500 data (about 70%)
-# and 2050/5865 in 5k data (about 35%)
-# we will use the 500 dataset for text preprocessing since it has better coverage
+# we use the 500 dataset for text preprocessing since it has good coverage
 ```
 
 ## Part 3: Text Preprocessing

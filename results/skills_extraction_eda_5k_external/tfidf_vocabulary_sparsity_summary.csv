@@ -1,0 +1,3 @@
+dataset,profiles,vocabulary_size,observed_profile_term_pairs,possible_profile_term_pairs,tfidf_space_sparsity_pct,avg_unique_terms_per_profile
+5k training dataset,5703,17668,192201,100760604,99.80924985324621,33.7017359284587
+KSB alumni external validation,649,4320,15858,2803680,99.4343862352337,24.434514637904467

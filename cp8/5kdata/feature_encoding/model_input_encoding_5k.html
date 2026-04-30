@@ -167,9 +167,19 @@ pre code {
 </div>
 
 
+<div id="file-overview" class="section level2">
+<h2>File Overview</h2>
+<p>This notebook turns the cleaned 5k LinkedIn profiles into model-ready inputs. It creates TF-IDF text features from profile text, builds multi-label skill targets from the skills field, creates train/validation/test splits, and saves the encoded objects for the modeling notebooks.</p>
+<p>This notebook converts the cleaned LinkedIn profile data into model-ready inputs. It builds a skill label vocabulary, creates a multi-label target matrix, turns profile text into TF-IDF features, creates train/validation/test splits, and saves the encoded objects for modeling.</p>
+<p>The setup chunk controls how code, warnings, and messages appear in the rendered HTML output.</p>
+<p><strong>Summary:</strong> This chunk sets global R Markdown options so rendered reports show code while suppressing warnings and messages. It also loads any packages needed immediately by this notebook.</p>
+</div>
 <div id="load-packages" class="section level1">
 <h1>Load Packages</h1>
-<pre class="r"><code>library(readr)
+<p>This block loads the packages used for CSV import, data wrangling, skill parsing, TF-IDF feature creation, sparse matrices, and train/test splitting.</p>
+<p><strong>Summary:</strong> This chunk loads the R packages needed in this file. Loading them at the top makes the dependencies explicit before data processing begins.</p>
+<pre class="r"><code># Load data manipulation, text encoding, sparse matrix, and splitting packages.
+library(readr)
 library(dplyr)
 library(stringr)
 library(tidyr)
@@ -182,7 +192,10 @@ library(caret)</code></pre>
 </div>
 <div id="import-preprocessed-dataset" class="section level1">
 <h1>Import Preprocessed Dataset</h1>
-<pre class="r"><code>preprocessed_input_path &lt;- &quot;../data/processed/linkedin_full_5865_preprocessed.csv&quot;
+<p>This block reads the cleaned dataset created by <code>datapreprocessing_5k.rmd</code>. It also prints dimensions and previews the data to confirm the expected file is being encoded.</p>
+<p><strong>Summary:</strong> This chunk imports the cleaned profile data created by preprocessing. The dimension and preview output confirm that the encoding step starts from the expected dataset.</p>
+<pre class="r"><code># Import the cleaned profile data that will be converted into model inputs.
+preprocessed_input_path &lt;- &quot;../../../data/processed/linkedin_full_5865_preprocessed.csv&quot;
 
 linkedin_preprocessed &lt;- read_csv(preprocessed_input_path, show_col_types = FALSE)
 
@@ -233,7 +246,10 @@ cat(&quot;Preprocessed dataset shape:&quot;, dim(linkedin_preprocessed), &quot;\
 </div>
 <div id="helper-functions" class="section level1">
 <h1>Helper Functions</h1>
-<pre class="r"><code>clean_text_for_tfidf &lt;- function(x) {
+<p>This block defines reusable helpers for model input creation. One helper normalizes profile text for TF-IDF, and the other converts the saved skills text back into a clean vector of individual skills.</p>
+<p><strong>Summary:</strong> This chunk defines reusable helper functions so cleaning, parsing, thresholding, and evaluation rules stay consistent throughout the notebook.</p>
+<pre class="r"><code># Define text normalization and skills parsing helpers used during encoding.
+clean_text_for_tfidf &lt;- function(x) {
   x &lt;- ifelse(is.na(x), &quot;&quot;, as.character(x))
   x &lt;- tolower(x)
   x &lt;- gsub(&quot;[\r\n\t]+&quot;, &quot; &quot;, x)
@@ -267,7 +283,10 @@ parse_skills_list &lt;- function(x) {
 </div>
 <div id="clean-text-and-parse-skills" class="section level1">
 <h1>Clean Text and Parse Skills</h1>
-<pre class="r"><code>linkedin_encoded &lt;- linkedin_preprocessed |&gt;
+<p>This block applies the helper functions to the preprocessed dataset. It cleans the combined profile text and creates a parsed skills list for each profile.</p>
+<p><strong>Summary:</strong> This chunk prepares the two core modeling ingredients: cleaned profile text for input features and parsed skills for target labels.</p>
+<pre class="r"><code># Clean the text field and parse each row&#39;s skills into a list column.
+linkedin_encoded &lt;- linkedin_preprocessed |&gt;
   mutate(
     profile_text = clean_text_for_tfidf(profile_text),
     parsed_skills = map(skills_list, parse_skills_list)
@@ -288,7 +307,10 @@ linkedin_encoded |&gt;
 </div>
 <div id="build-skill-vocabulary" class="section level1">
 <h1>Build Skill Vocabulary</h1>
-<pre class="r"><code>skill_frequency &lt;- linkedin_encoded |&gt;
+<p>This block expands the parsed skill lists into one skill per row and counts how often each skill appears. The resulting frequency table defines the available multi-label targets before rare-skill filtering.</p>
+<p><strong>Summary:</strong> This chunk counts how often each skill appears across profiles. Those counts define the candidate label vocabulary before rare skills are filtered out.</p>
+<pre class="r"><code># Count each unique skill across all profiles.
+skill_frequency &lt;- linkedin_encoded |&gt;
   select(parsed_skills) |&gt;
   unnest(parsed_skills) |&gt;
   count(parsed_skills, sort = TRUE, name = &quot;frequency&quot;)
@@ -322,7 +344,10 @@ cat(&quot;Total unique skills before filtering:&quot;, nrow(skill_frequency), &q
 </div>
 <div id="filter-rare-skills" class="section level1">
 <h1>Filter Rare Skills</h1>
-<pre class="r"><code>min_skill_frequency &lt;- 10
+<p>This block keeps only skills that appear at least 10 times. Filtering rare labels reduces noise and prevents models from trying to learn labels with too little training data.</p>
+<p><strong>Summary:</strong> This chunk keeps only skills with enough examples to model. Filtering rare skills reduces noise and avoids targets with too little training data.</p>
+<pre class="r"><code># Keep skills with enough examples to model and count retained skills per profile.
+min_skill_frequency &lt;- 10
 
 retained_skills &lt;- skill_frequency |&gt;
   filter(frequency &gt;= min_skill_frequency) |&gt;
@@ -351,7 +376,10 @@ linkedin_encoded |&gt;
 </div>
 <div id="create-multi-label-target-matrix" class="section level1">
 <h1>Create Multi-Label Target Matrix</h1>
-<pre class="r"><code>n_rows &lt;- nrow(linkedin_encoded)
+<p>This block creates the target matrix used by the multi-label models. Each row is a LinkedIn profile and each retained skill gets a 1 or 0 indicating whether that skill is present.</p>
+<p><strong>Summary:</strong> This chunk creates the multi-label target matrix. Each profile becomes one row, and each retained skill becomes a binary target column.</p>
+<pre class="r"><code># Convert each profile&#39;s retained skill list into binary target columns.
+n_rows &lt;- nrow(linkedin_encoded)
 n_skills &lt;- length(retained_skills)
 
 y_matrix &lt;- matrix(0L, nrow = n_rows, ncol = n_skills)
@@ -392,7 +420,10 @@ cat(&quot;Target matrix dimensions:&quot;, dim(y_matrix), &quot;\n&quot;)</code>
 </div>
 <div id="build-tf-idf-matrix-from-profile-text" class="section level1">
 <h1>Build TF-IDF Matrix from Profile Text</h1>
-<pre class="r"><code>stop_words_vector &lt;- tidytext::stop_words$word
+<p>This block converts the cleaned profile text into sparse TF-IDF features. It uses unigrams and bigrams, removes stop words, prunes very rare or overly common terms, and limits the matrix to the strongest 5,000 features.</p>
+<p><strong>Summary:</strong> This chunk converts the cleaned profile text into TF-IDF features. These numeric text features are the model inputs used by logistic regression, KNN, and XGBoost.</p>
+<pre class="r"><code># Build sparse TF-IDF features from the cleaned profile text.
+stop_words_vector &lt;- tidytext::stop_words$word
 
 tokens_iterator &lt;- itoken(
   linkedin_encoded$profile_text,
@@ -438,7 +469,10 @@ cat(&quot;TF-IDF matrix dimensions:&quot;, dim(tfidf_matrix), &quot;\n&quot;)</c
 </div>
 <div id="align-inputs-and-targets" class="section level1">
 <h1>Align Inputs and Targets</h1>
-<pre class="r"><code>stopifnot(nrow(tfidf_matrix) == nrow(y_df))
+<p>This block checks that the feature matrix and target matrix have the same number of rows. This prevents accidental misalignment before the train/validation/test split.</p>
+<p><strong>Summary:</strong> This chunk verifies that the TF-IDF input matrix and target matrix have matching row counts. This protects against training on misaligned features and labels.</p>
+<pre class="r"><code># Confirm that each feature row still lines up with exactly one target row.
+stopifnot(nrow(tfidf_matrix) == nrow(y_df))
 
 cat(&quot;Rows in TF-IDF matrix:&quot;, nrow(tfidf_matrix), &quot;\n&quot;)</code></pre>
 <pre><code>## Rows in TF-IDF matrix: 5865</code></pre>
@@ -447,7 +481,10 @@ cat(&quot;Rows in TF-IDF matrix:&quot;, nrow(tfidf_matrix), &quot;\n&quot;)</cod
 </div>
 <div id="create-701515-train-validation-test-split" class="section level1">
 <h1>Create 70/15/15 Train-Validation-Test Split</h1>
-<pre class="r"><code>set.seed(42)
+<p>This block creates the modeling splits. It first assigns 70% of profiles to training, then divides the remaining 30% equally into validation and test sets while stratifying on whether a profile has any retained skill.</p>
+<p><strong>Summary:</strong> This chunk creates the 70/15/15 training, validation, and test split. The validation set is used for threshold tuning and model selection, while the test set is held out for final evaluation.</p>
+<pre class="r"><code># Split rows into training, validation, and test sets with stable random seeds.
+set.seed(42)
 
 train_index &lt;- createDataPartition(
   linkedin_encoded$retained_skill_count &gt; 0,
@@ -496,7 +533,10 @@ cat(&quot;Training set size:&quot;, nrow(X_train), &quot;\n&quot;)</code></pre>
 </div>
 <div id="summary-diagnostics" class="section level1">
 <h1>Summary Diagnostics</h1>
-<pre class="r"><code>cat(&quot;Final encoded dataset summary\n&quot;)</code></pre>
+<p>This block reports final encoding diagnostics, including total profiles, retained label count, feature count, split sizes, and the most common retained skills.</p>
+<p><strong>Summary:</strong> This chunk reports final encoding diagnostics such as profile counts, retained skill counts, feature counts, split sizes, and common retained skills. These checks confirm the encoded data is ready for modeling.</p>
+<pre class="r"><code># Print high-level checks for the encoded modeling dataset.
+cat(&quot;Final encoded dataset summary\n&quot;)</code></pre>
 <pre><code>## Final encoded dataset summary</code></pre>
 <pre class="r"><code>cat(&quot;-----------------------------\n&quot;)</code></pre>
 <pre><code>## -----------------------------</code></pre>
@@ -543,9 +583,12 @@ head(top_retained_skills, 20)</code></pre>
 </div>
 <div id="save-outputs" class="section level1">
 <h1>Save Outputs</h1>
-<pre class="r"><code>tfidf_output_path &lt;- &quot;../data/processed/linkedin_full_5865_tfidf.rds&quot;
-targets_output_path &lt;- &quot;../data/processed/linkedin_full_5865_multilabel_targets.csv&quot;
-split_output_path &lt;- &quot;../data/processed/train_validation_test_split.rds&quot;
+<p>This block saves the TF-IDF matrix, multi-label target CSV, and all split objects. The modeling notebooks read these saved files instead of rebuilding the encoding pipeline each time.</p>
+<p><strong>Summary:</strong> This chunk saves the encoded TF-IDF matrix, multi-label targets, split indexes, profile metadata, and retained skill names. The model notebooks load these objects instead of rebuilding the encoding pipeline.</p>
+<pre class="r"><code># Save encoded features, target labels, split indexes, profile metadata, and skill names.
+tfidf_output_path &lt;- &quot;../../../data/processed/linkedin_full_5865_tfidf.rds&quot;
+targets_output_path &lt;- &quot;../../../data/processed/linkedin_full_5865_multilabel_targets.csv&quot;
+split_output_path &lt;- &quot;../../../data/processed/train_validation_test_split.rds&quot;
 
 saveRDS(tfidf_matrix, tfidf_output_path)
 
@@ -574,11 +617,11 @@ split_objects &lt;- list(
 saveRDS(split_objects, split_output_path)
 
 cat(&quot;Saved TF-IDF matrix to:&quot;, tfidf_output_path, &quot;\n&quot;)</code></pre>
-<pre><code>## Saved TF-IDF matrix to: ../data/processed/linkedin_full_5865_tfidf.rds</code></pre>
+<pre><code>## Saved TF-IDF matrix to: ../../../data/processed/linkedin_full_5865_tfidf.rds</code></pre>
 <pre class="r"><code>cat(&quot;Saved multi-label targets to:&quot;, targets_output_path, &quot;\n&quot;)</code></pre>
-<pre><code>## Saved multi-label targets to: ../data/processed/linkedin_full_5865_multilabel_targets.csv</code></pre>
+<pre><code>## Saved multi-label targets to: ../../../data/processed/linkedin_full_5865_multilabel_targets.csv</code></pre>
 <pre class="r"><code>cat(&quot;Saved train/validation/test split objects to:&quot;, split_output_path, &quot;\n&quot;)</code></pre>
-<pre><code>## Saved train/validation/test split objects to: ../data/processed/train_validation_test_split.rds</code></pre>
+<pre><code>## Saved train/validation/test split objects to: ../../../data/processed/train_validation_test_split.rds</code></pre>
 </div>
 
 

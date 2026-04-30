@@ -1,0 +1,6 @@
+risk_area,plain_language_meaning,technical_meaning,recommended_action
+Sparse text features,Each profile uses only a small portion of the full vocabulary.,The TF-IDF matrix is high-dimensional and mostly zeros.,Use regularized Logistic Regression as a strong sparse-text baseline; interpret KNN cautiously.
+Skill-label imbalance,Some skills appear often while many appear rarely.,Macro metrics will be lower than micro metrics because rare labels are harder to learn.,"Report micro-F1, macro-F1, precision, recall, and per-skill performance for top modeled skills."
+Zero-skill profiles,Some profiles may not contain any modeled skills.,All-zero target rows provide negative examples and protect against overprediction.,Keep zero-skill profiles unless they are confirmed data-quality errors.
+External validation drift,The alumni data may not look exactly like the 5k training data.,Different text length or skill distributions can lower out-of-sample performance.,Explain external validation results separately from internal test results.
+Limited modeled label space,The model can only predict skills included in the retained skill list.,External labels outside the modeled skill space are out-of-vocabulary targets.,Report coverage of external labels inside the 100-skill model space before judging performance.

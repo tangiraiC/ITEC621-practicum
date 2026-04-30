@@ -1,0 +1,6 @@
+finding,why_it_matters_for_skill_extraction
+Skill labels are multi-label and highly imbalanced.,"F1-micro is useful, but common skills can dominate model performance. Per-skill review is important."
+Job descriptions and titles provide the model's main text signal.,Profiles without meaningful descriptions are harder to classify because the model has less evidence.
+The external alumni dataset is smaller but directly tests out-of-sample generalization.,This is the best check of whether the training workflow transfers to KSB alumni profiles.
+Explicit skill mentions are only part of the problem.,"When skill names are not directly in the text, models must infer skills from job duties, titles, industries, and context."
+The 100-skill model space should be checked against external labels.,"If many external skills are outside the modeled label space, the model cannot predict them regardless of text quality."
