@@ -134,7 +134,7 @@ artifacts <- load_demo_artifacts()
 
 ui <- fluidPage(
   tags$head(
-    tags$title("KSB621 Skills Extraction Demo"),
+    tags$title("KSB621 Skills Extraction Demo ✨"),
     tags$style(HTML("
       body {
         background: #f6f7f9;
@@ -209,11 +209,11 @@ ui <- fluidPage(
     class = "app-shell",
     div(
       class = "app-header",
-      div(class = "app-title", "KSB621 Skills Extraction Demo"),
+      div(class = "app-title", "✨ KSB621 Skills Extraction Demo"),
       div(
         class = "app-subtitle",
-        "The app reads profile text, converts it into model-ready features, ",
-        "and predicts which skills are most likely present."
+        "📝 The app reads profile text, converts it into model-ready features, ",
+        "and predicts which skills are most likely present. 🎯"
       )
     ),
     uiOutput("setup_warning"),
@@ -222,41 +222,41 @@ ui <- fluidPage(
         width = 6,
         div(
           class = "panel",
-          h3("Profile Input"),
-          textInput("headline", "Headline", placeholder = "Example: Data Analyst | MBA Candidate"),
-          textInput("current_job_title", "Current Job Title", placeholder = "Example: Senior Business Analyst"),
+          h3("👤 Profile Input"),
+          textInput("headline", "🪪 Headline", placeholder = "Example: Data Analyst | MBA Candidate"),
+          textInput("current_job_title", "💼 Current Job Title", placeholder = "Example: Senior Business Analyst"),
           textAreaInput(
             "current_job_description",
-            "Current Job Description",
+            "📌 Current Job Description",
             placeholder = "Paste current role responsibilities here...",
             height = "110px"
           ),
-          textInput("previous_job_title", "Previous Job Title", placeholder = "Example: Operations Analyst"),
+          textInput("previous_job_title", "🕘 Previous Job Title", placeholder = "Example: Operations Analyst"),
           textAreaInput(
             "previous_job_description",
-            "Previous Job Description",
+            "🧾 Previous Job Description",
             placeholder = "Paste previous role responsibilities here...",
             height = "110px"
           ),
           sliderInput(
             "threshold",
-            "Prediction Threshold",
+            "🎚️ Prediction Threshold",
             min = 0,
             max = 1,
             value = 0.50,
             step = 0.05
           ),
-          actionButton("extract", "Extract Skills", class = "btn-primary")
+          actionButton("extract", "🚀 Extract Skills", class = "btn-primary")
         )
       ),
       column(
         width = 6,
         div(
           class = "panel",
-          h3("Predicted Skills"),
+          h3("✅ Predicted Skills"),
           uiOutput("predicted_skills"),
           tags$hr(),
-          h3("Top 10 Skill Probabilities"),
+          h3("📊 Top 10 Skill Probabilities"),
           tableOutput("top_skill_table")
         )
       )
@@ -295,7 +295,7 @@ server <- function(input, output, session) {
 
     div(
       class = "warning-box",
-      tags$strong("Setup check"),
+      tags$strong("⚠️ Setup check"),
       tags$ul(lapply(messages, tags$li))
     )
   })
@@ -331,7 +331,7 @@ server <- function(input, output, session) {
     predicted <- result$predicted_skills
 
     if (nrow(predicted) == 0) {
-      return(div(class = "muted-note", "No strong skills detected."))
+      return(div(class = "muted-note", "🔎 No strong skills detected."))
     }
 
     tagList(
@@ -352,9 +352,9 @@ server <- function(input, output, session) {
 
     result$top_skills |>
       dplyr::transmute(
-        Skill = skill,
-        `Confidence` = confidence_label,
-        `Above Threshold` = ifelse(predicted, "Yes", "No")
+        `🧠 Skill` = skill,
+        `📈 Confidence` = confidence_label,
+        `🎯 Above Threshold` = ifelse(predicted, "✅ Yes", "❌ No")
       )
   })
 }
