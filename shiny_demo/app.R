@@ -20,6 +20,7 @@ if (!requireNamespace("shiny", quietly = TRUE)) {
 }
 
 library(shiny)
+library(xgboost)
 
 model_dir <- file.path("models")
 model_paths <- list(
@@ -62,8 +63,20 @@ load_demo_artifacts <- function() {
     return(NULL)
   }
 
+  final_model <- readRDS(model_paths$final_model)
+  final_model$models <- lapply(
+    final_model$models,
+    function(model) {
+      if (!inherits(model, "xgb.Booster") && is.list(model) && "ptr" %in% names(model)) {
+        class(model) <- "xgb.Booster"
+      }
+
+      model
+    }
+  )
+
   list(
-    final_model = readRDS(model_paths$final_model),
+    final_model = final_model,
     tfidf_vectorizer = readRDS(model_paths$tfidf_vectorizer),
     retained_skills = readRDS(model_paths$retained_skills)
   )
