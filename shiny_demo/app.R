@@ -64,21 +64,31 @@ load_demo_artifacts <- function() {
   }
 
   final_model <- readRDS(model_paths$final_model)
-  final_model$models <- lapply(
-    final_model$models,
-    function(model) {
-      if (!inherits(model, "xgb.Booster") && is.list(model) && "ptr" %in% names(model)) {
-        class(model) <- "xgb.Booster"
-      }
-
-      model
-    }
-  )
+  final_model$models <- lapply(final_model$models, normalize_xgb_booster)
 
   list(
     final_model = final_model,
     tfidf_vectorizer = readRDS(model_paths$tfidf_vectorizer),
     retained_skills = readRDS(model_paths$retained_skills)
+  )
+}
+
+normalize_xgb_booster <- function(model) {
+  if (inherits(model, "xgb.Booster")) {
+    return(model)
+  }
+
+  if (is.list(model) && "ptr" %in% names(model)) {
+    class(model) <- "xgb.Booster"
+    return(model)
+  }
+
+  stop(
+    "Loaded model is not an xgb.Booster. Class: ",
+    paste(class(model), collapse = ", "),
+    "; names: ",
+    paste(names(model), collapse = ", "),
+    call. = FALSE
   )
 }
 
@@ -123,7 +133,8 @@ predict_skills <- function(cleaned_text, artifacts, threshold) {
   probabilities <- vapply(
     seq_along(retained_skills),
     function(i) {
-      as.numeric(predict(final_model$models[[i]], newdata = xgb_matrix))
+      booster <- normalize_xgb_booster(final_model$models[[i]])
+      as.numeric(predict(booster, newdata = xgb_matrix))
     },
     numeric(1)
   )
