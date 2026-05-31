@@ -72,6 +72,49 @@ shiny::runApp("shiny_demo")
 
 In RStudio, you can also open `shiny_demo/app.R` and click **Run App**.
 
+## Deploy to Render
+
+Render does not provide a native R/Shiny runtime, so this Shiny app deploys on
+Render with Docker. The app still runs as R Shiny; Docker only supplies the R
+environment and package dependencies.
+
+### Blueprint Deploy
+
+1. Push this repository to GitHub.
+2. In Render, click **New +** -> **Blueprint**.
+3. Connect the GitHub repository.
+4. Render will read `render.yaml` from the project root.
+5. Create the service and wait for the build to finish.
+
+### Manual Web Service Deploy
+
+1. Push this repository to GitHub.
+2. In Render, click **New +** -> **Web Service**.
+3. Connect the GitHub repository.
+4. Use these settings:
+
+```text
+Runtime: Docker
+Root Directory: shiny_demo
+Dockerfile Path: ./Dockerfile
+Plan: Free is acceptable for the demo
+```
+
+Render provides the public port through the `PORT` environment variable. The
+Dockerfile starts Shiny with `host = "0.0.0.0"` and that Render port, which is
+required for Render to route traffic to the app.
+
+### Deployment Notes
+
+- Keep these model files committed in `shiny_demo/models/`:
+  - `final_model.rds`
+  - `tfidf_vectorizer.rds`
+  - `retained_skills.rds`
+- The first build can take several minutes because Render installs R packages,
+  including `xgboost`.
+- If the app deploys but predictions do not run, check the Render logs for
+  missing R packages or missing files under `/app/models/`.
+
 ## How This Supports CP9/CP10
 
 This is a presentation-ready local demo, not a production system. It shows the
