@@ -28,6 +28,7 @@ model_paths <- list(
   tfidf_vectorizer = file.path(model_dir, "tfidf_vectorizer.rds"),
   retained_skills = file.path(model_dir, "retained_skills.rds")
 )
+booster_dir <- file.path(model_dir, "xgboost_boosters")
 
 missing_model_files <- names(model_paths)[!file.exists(unlist(model_paths))]
 
@@ -64,7 +65,15 @@ load_demo_artifacts <- function() {
   }
 
   final_model <- readRDS(model_paths$final_model)
-  final_model$models <- lapply(final_model$models, normalize_xgb_booster)
+  booster_paths <- sort(list.files(
+    booster_dir,
+    pattern = "^model_[0-9]+\\.json$",
+    full.names = TRUE
+  ))
+
+  if (length(booster_paths) == length(final_model$models)) {
+    final_model$models <- lapply(booster_paths, xgboost::xgb.load)
+  }
 
   list(
     final_model = final_model,
